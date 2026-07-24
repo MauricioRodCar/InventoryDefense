@@ -1,0 +1,9 @@
+# Godot 4+ specific ignores
+# Godot
+.godot/
+
+# Imported assets
+*.import
+
+# Build files
+/export/
