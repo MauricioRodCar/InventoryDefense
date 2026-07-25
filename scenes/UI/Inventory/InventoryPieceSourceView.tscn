@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/UI/Inventory/inventory_piece_source_view.gd" id="1"]
+
+[node name="InventoryPieceSourceView" type="Control"]
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 32.0
+script = ExtResource("1")
+
+[node name="ItemsLayer" type="Node2D" parent="."]
