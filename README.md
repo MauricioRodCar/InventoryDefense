@@ -61,6 +61,10 @@ Incluye:
 - `InventoryInteractionController` sigue siendo el único llamador de `InventoryGrid.can_place()`; ahora lo consulta también durante `_update_drag` (antes solo al soltar), pero cachea la última celda ancla evaluada (`_last_preview_anchor`) para no repetir la consulta en cada evento de `InputEventMouseMotion`, solo cuando el cursor cruza a una celda ancla distinta.
 - El estado del preview se expresa como `InventoryPlacementPreviewView.State` (enum: `VALID`, `INVALID`) en vez de un bool, para poder añadir más estados en el futuro sin romper el contrato público de la clase.
 
+#### Deuda técnica conocida — `InventoryPiece.id`
+
+`InventoryPiece.id` mezcla hoy dos roles distintos: identidad de instancia (`InventoryGrid` lo usa como clave única en su diccionario interno `_pieces`) e identidad de tipo (`InventoryPieceSourceSandbox` asigna ids como `&"square"`/`&"bar"`/`&"corner"` que en realidad describen un tipo de pieza, no una instancia concreta). No colisiona todavía porque el sandbox nunca ofrece dos piezas con el mismo id, pero cualquier fuente real (tienda, cofres, draft) que ofrezca piezas repetidas haría que la segunda pisara a la primera en `_pieces`, perdiendo una pieza colocada de `get_pieces()` de forma silenciosa. `DefenderTranslator` (ver Bridge) depende temporalmente de que esto no ocurra: usa `piece.id` como clave de tipo hacia `DefenderCatalog`. Pendiente de resolver en una branch independiente (separar identidad de instancia de identidad de tipo en `InventoryPiece`) antes de introducir una fuente de piezas que pueda repetir tipos.
+
 ### Combate
 
 Estado:
@@ -108,8 +112,32 @@ Incluye:
 - `WaveData` ordena sus `SpawnEntry` por tiempo ascendente al construirse, para que `Wave` pueda consumirlas con un único cursor monótono (`_next_index`) en vez de reescanear todo el calendario en cada `advance()`.
 - `CombatSimulation.advance(delta)` sigue funcionando exactamente igual que antes cuando no se le proporciona ninguna `Wave` (parámetro opcional, `null` por defecto): `_resolve_spawns()` es un no-op en ese caso, así que todos los tests existentes que pueblan el roster manualmente vía `add_enemy` no necesitaron cambios.
 
+### Bridge (Inventory ↔ Combat)
+
+Estado:
+✅ `CombatSimulationBuilder` implementado: construye una `CombatSimulation` lista a partir del estado actual de un `InventoryGrid`
+
+Incluye:
+
+- `DefenderData` (dominio; definición pura de qué `WeaponData` usa un tipo de defensor, sin estado de ejecución — mismo rol que `WeaponData`/`EnemyData`)
+- `DefenderCatalog` (dominio; mapeo puro entre una clave de tipo de `InventoryPiece` y el `DefenderData` que debería producir, sin conocer `InventoryPiece` ni `Defender` — mismo rol que `WaveData` respecto a `Wave`/`Enemy`)
+- `DefenderTranslator` (algoritmo sin estado ni propiedad del dominio; traduce una `InventoryPiece` en un `Defender` nuevo consultando un `DefenderCatalog` — mismo estilo que `MovementPhase`/`AttackPhase`)
+- `CombatSimulationBuilder` (composition root del bridge; la única clase que conoce `InventoryGrid` y `CombatSimulation` a la vez — ninguna de las dos se entera de la existencia de la otra)
+- Tests headless
+
+#### Notas de diseño — Bridge
+
+- `Inventory` y `Combat` siguen siendo dominios completamente independientes: ninguna clase de `Inventory` referencia nada de `Combat` ni viceversa. Todo el conocimiento cruzado vive exclusivamente en `Scripts/Gameplay/Bridge/`, una carpeta separada de ambas — lo que hace visible en la propia estructura del proyecto que este código depende de los dos dominios pero ninguno depende de él.
+- `DefenderTranslator.translate()` es responsable de crear tanto la `WeaponInstance` como el `Defender` en la misma llamada, porque ambas creaciones son atómicas: no tiene sentido crear una `WeaponInstance` sin entregarla de inmediato a un `Defender` (ver la nota sobre `WeaponData`/`WeaponInstance` en Combate). Cada pieza traducida obtiene su propia `WeaponInstance`, aunque dos piezas compartan el mismo `DefenderData`/`WeaponData`, para no filtrar cooldown entre defensores.
+- `DefenderTranslator` usa `piece.id` como clave de tipo hacia `DefenderCatalog`. Es una dependencia deliberadamente temporal sobre la deuda técnica documentada en Inventario (`InventoryPiece.id` mezcla identidad de instancia y de tipo); asume que no hay piezas repetidas ofrecidas, igual que `InventoryPieceSourceSandbox`.
+- Una pieza del grid sin entrada en el `DefenderCatalog` no produce ningún `Defender` ni interrumpe la construcción del resto: `CombatSimulationBuilder.build()` simplemente la ignora.
+- `CombatSimulationBuilder.build()` no retiene ninguna referencia entre llamadas (el `InventoryGrid`, el `CombatPath`, la `WaveData` y el `DefenderCatalog` se reciben como parámetros explícitos cada vez): puede reutilizarse para iniciar tantos combates como haga falta sin arrastrar estado entre ellos. Esto deja preparado el terreno para que distintos modos de juego (campaña, endless, jefes, etc.) reutilicen la misma pieza sin que ella necesite saber nada sobre el modo que la invoca.
+- `CombatSimulationBuilder` no modifica la API pública de `CombatSimulation`: sigue construyéndola con `_init(path, wave)` y añadiendo defensores vía `add_defender()`, el mismo punto de extensión que `CombatSimulation` ya dejaba preparado desde antes de que existiera el bridge.
+
 ### Próximo objetivo
 
-Integrar `CombatSimulation` con `InventoryGrid` para que las piezas colocadas se conviertan en `Defender`.
-
 Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting).
+
+Resolver la deuda técnica de `InventoryPiece.id` (separar identidad de instancia de identidad de tipo) antes de que esa fuente real pueda ofrecer piezas repetidas.
+
+Conectar `CombatSimulationBuilder` con una UI real de "Start Battle" y una representación visual del combate (todavía no implementada).

@@ -17,6 +17,10 @@ const TestAttackPhase = preload("res://Tests/Gameplay/Combat/test_attack_phase.g
 const TestWaveData = preload("res://Tests/Gameplay/Combat/test_wave_data.gd")
 const TestWave = preload("res://Tests/Gameplay/Combat/test_wave.gd")
 const TestCombatSimulation = preload("res://Tests/Gameplay/Combat/test_combat_simulation.gd")
+const TestDefenderData = preload("res://Tests/Gameplay/Bridge/test_defender_data.gd")
+const TestDefenderCatalog = preload("res://Tests/Gameplay/Bridge/test_defender_catalog.gd")
+const TestDefenderTranslator = preload("res://Tests/Gameplay/Bridge/test_defender_translator.gd")
+const TestCombatSimulationBuilder = preload("res://Tests/Gameplay/Bridge/test_combat_simulation_builder.gd")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -37,6 +41,10 @@ func _initialize() -> void:
 	_run_suite(TestWaveData.new())
 	_run_suite(TestWave.new())
 	_run_suite(TestCombatSimulation.new())
+	_run_suite(TestDefenderData.new())
+	_run_suite(TestDefenderCatalog.new())
+	_run_suite(TestDefenderTranslator.new())
+	_run_suite(TestCombatSimulationBuilder.new())
 
 	print("")
 	print("Resultado: %d passed, %d failed" % [_passed, _failed])
