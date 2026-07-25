@@ -10,9 +10,12 @@ const TestCombatPath = preload("res://Tests/Gameplay/Combat/test_combat_path.gd"
 const TestWeaponData = preload("res://Tests/Gameplay/Combat/test_weapon_data.gd")
 const TestWeaponInstance = preload("res://Tests/Gameplay/Combat/test_weapon_instance.gd")
 const TestEnemy = preload("res://Tests/Gameplay/Combat/test_enemy.gd")
+const TestEnemyData = preload("res://Tests/Gameplay/Combat/test_enemy_data.gd")
 const TestDefender = preload("res://Tests/Gameplay/Combat/test_defender.gd")
 const TestMovementPhase = preload("res://Tests/Gameplay/Combat/test_movement_phase.gd")
 const TestAttackPhase = preload("res://Tests/Gameplay/Combat/test_attack_phase.gd")
+const TestWaveData = preload("res://Tests/Gameplay/Combat/test_wave_data.gd")
+const TestWave = preload("res://Tests/Gameplay/Combat/test_wave.gd")
 const TestCombatSimulation = preload("res://Tests/Gameplay/Combat/test_combat_simulation.gd")
 
 var _passed: int = 0
@@ -27,9 +30,12 @@ func _initialize() -> void:
 	_run_suite(TestWeaponData.new())
 	_run_suite(TestWeaponInstance.new())
 	_run_suite(TestEnemy.new())
+	_run_suite(TestEnemyData.new())
 	_run_suite(TestDefender.new())
 	_run_suite(TestMovementPhase.new())
 	_run_suite(TestAttackPhase.new())
+	_run_suite(TestWaveData.new())
+	_run_suite(TestWave.new())
 	_run_suite(TestCombatSimulation.new())
 
 	print("")
