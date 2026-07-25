@@ -17,6 +17,15 @@ const InventoryPieceView = preload("res://Scripts/UI/Inventory/inventory_piece_v
 var _grid: InventoryGrid
 var _piece_views: Dictionary = {} # InventoryPiece -> InventoryPieceView
 
+## Convierte una posición local (px) a la celda del grid que la contiene.
+## Pura geometría de la representación visual; no valida límites del grid.
+func position_to_cell(local_position: Vector2) -> Vector2i:
+	return Vector2i(floori(local_position.x / cell_size), floori(local_position.y / cell_size))
+
+## Convierte una celda del grid a su posición local (px), esquina superior izquierda.
+func cell_to_position(cell: Vector2i) -> Vector2:
+	return Vector2(cell) * cell_size
+
 func set_inventory_grid(grid: InventoryGrid) -> void:
 	_disconnect_grid()
 	_clear_piece_views()

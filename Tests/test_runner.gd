@@ -5,6 +5,7 @@ extends SceneTree
 const TestShapeData = preload("res://Tests/Gameplay/Inventory/test_shape_data.gd")
 const TestInventoryPiece = preload("res://Tests/Gameplay/Inventory/test_inventory_piece.gd")
 const TestInventoryGrid = preload("res://Tests/Gameplay/Inventory/test_inventory_grid.gd")
+const TestInventorySandbox = preload("res://Tests/Gameplay/Inventory/test_inventory_sandbox.gd")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -13,6 +14,7 @@ func _initialize() -> void:
 	_run_suite(TestShapeData.new())
 	_run_suite(TestInventoryPiece.new())
 	_run_suite(TestInventoryGrid.new())
+	_run_suite(TestInventorySandbox.new())
 
 	print("")
 	print("Resultado: %d passed, %d failed" % [_passed, _failed])
