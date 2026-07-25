@@ -6,6 +6,11 @@ const TestShapeData = preload("res://Tests/Gameplay/Inventory/test_shape_data.gd
 const TestInventoryPiece = preload("res://Tests/Gameplay/Inventory/test_inventory_piece.gd")
 const TestInventoryGrid = preload("res://Tests/Gameplay/Inventory/test_inventory_grid.gd")
 const TestInventoryPieceSource = preload("res://Tests/Gameplay/Inventory/test_inventory_piece_source.gd")
+const TestCombatPath = preload("res://Tests/Gameplay/Combat/test_combat_path.gd")
+const TestWeaponData = preload("res://Tests/Gameplay/Combat/test_weapon_data.gd")
+const TestWeaponInstance = preload("res://Tests/Gameplay/Combat/test_weapon_instance.gd")
+const TestEnemy = preload("res://Tests/Gameplay/Combat/test_enemy.gd")
+const TestDefender = preload("res://Tests/Gameplay/Combat/test_defender.gd")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -15,6 +20,11 @@ func _initialize() -> void:
 	_run_suite(TestInventoryPiece.new())
 	_run_suite(TestInventoryGrid.new())
 	_run_suite(TestInventoryPieceSource.new())
+	_run_suite(TestCombatPath.new())
+	_run_suite(TestWeaponData.new())
+	_run_suite(TestWeaponInstance.new())
+	_run_suite(TestEnemy.new())
+	_run_suite(TestDefender.new())
 
 	print("")
 	print("Resultado: %d passed, %d failed" % [_passed, _failed])
