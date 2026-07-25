@@ -1,6 +1,6 @@
 # Proyecto
 
-Juego 2D inspirado en Backpack Hero + Tower Defense.
+Juego 2D inspirado en Backpack Hero + Tower Defense + Merge.
 
 ## Objetivo
 
@@ -16,3 +16,15 @@ Desarrollar un MVP comercial.
 - Preferir composición.
 - Usar señales cuando sea posible.
 - La lógica no debe depender de la UI.
+
+## Ownership
+
+InventoryPiece always has exactly one owner.
+
+Possible owners:
+
+- InventoryPieceSource
+- InventoryGrid
+- InventoryInteractionController (temporary during drag)
+
+Ownership is transferred, never shared.

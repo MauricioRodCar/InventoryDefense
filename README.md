@@ -61,6 +61,30 @@ Incluye:
 - `InventoryInteractionController` sigue siendo el único llamador de `InventoryGrid.can_place()`; ahora lo consulta también durante `_update_drag` (antes solo al soltar), pero cachea la última celda ancla evaluada (`_last_preview_anchor`) para no repetir la consulta en cada evento de `InputEventMouseMotion`, solo cuando el cursor cruza a una celda ancla distinta.
 - El estado del preview se expresa como `InventoryPlacementPreviewView.State` (enum: `VALID`, `INVALID`) en vez de un bool, para poder añadir más estados en el futuro sin romper el contrato público de la clase.
 
+### Combate
+
+Estado:
+✅ Entidades base del dominio implementadas (sin `CombatSimulation` todavía)
+
+Incluye:
+
+- `CombatPath` (dominio; longitud lógica del camino, sin posiciones de mundo)
+- `WeaponData` (dominio; definición pura de daño y cadencia de ataque, compartible entre instancias)
+- `WeaponInstance` (dominio; instancia de un `WeaponData` en uso, lleva su propio cooldown)
+- `Enemy` (dominio; vida y progreso en el camino)
+- `Defender` (dominio; compone su capacidad ofensiva vía `WeaponInstance` en vez de tener daño/cadencia embebidos)
+- Tests headless
+
+#### Notas de diseño — entidades de combate
+
+- Misma filosofía que el inventario: dominio sin dependencias de Godot, ejecutable headless, separación estricta entre dominio, orquestación (`CombatSimulation`, `MovementPhase`, `AttackPhase`, todavía no implementados) y representación visual (todavía no implementada).
+- `WeaponData` juega el mismo rol que `ShapeData`: definición pura, sin estado, compartible entre múltiples instancias. `WeaponInstance` juega el rol de `InventoryPiece`: instancia con estado de ejecución propio (`cooldown_remaining`), mutado solo mediante métodos privados (`_tick`, `_reset_cooldown`) reservados a un futuro `AttackPhase`. Esta cadena Definition → Runtime Instance → Owner evita que dos `Defender` que comparten el mismo `WeaponData` interfieran entre sí si comparten cooldown por error.
+- `Defender` no tiene ni `damage` ni `attack_interval` propios: siempre los obtiene a través de su `weapon_instance`, para que el comportamiento ofensivo no quede embebido directamente en la unidad.
+- `Enemy` y `Defender` no se conocen entre sí ni conocen `CombatPath`: cada uno solo protege sus propios invariantes (vida acotada a `[0, max_health]`, progreso nunca negativo). Acotar `path_progress` contra la longitud de un `CombatPath` concreto es responsabilidad de quien los coordina (`MovementPhase`, futuro), no de `Enemy`.
+- Ninguna de estas clases emite señales: no hay todavía una autoridad de combate (`CombatSimulation`) que sea la fuente única de verdad y el único emisor, igual que `InventoryGrid`/`InventoryPieceSource` lo son para el inventario.
+
 ### Próximo objetivo
+
+Implementar `CombatSimulation`, `Wave`, `MovementPhase` y `AttackPhase` para orquestar estas entidades en una oleada completa.
 
 Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting).
