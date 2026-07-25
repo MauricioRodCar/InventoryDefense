@@ -1,14 +1,20 @@
-[gd_scene load_steps=4 format=3 uid="uid://dmmvrg6midvd5"]
+[gd_scene load_steps=5 format=3 uid="uid://dmmvrg6midvd5"]
 
 [ext_resource type="Script" path="res://Scripts/Main/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryGridView.tscn" id="2"]
 [ext_resource type="Script" path="res://Scripts/UI/Inventory/inventory_interaction_controller.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryPieceSourceView.tscn" id="4"]
 
 [node name="Node2D" type="Node2D" unique_id=426169063]
 script = ExtResource("1")
 
 [node name="InventoryGridView" parent="." instance=ExtResource("2")]
 position = Vector2(80, 60)
+cell_size = 48
+mouse_filter = 2
+
+[node name="InventoryPieceSourceView" parent="." instance=ExtResource("4")]
+position = Vector2(80, 380)
 cell_size = 48
 mouse_filter = 2
 
