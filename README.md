@@ -64,7 +64,8 @@ Incluye:
 ### Combate
 
 Estado:
-✅ Entidades base del dominio implementadas (sin `CombatSimulation` todavía)
+✅ Entidades base del dominio implementadas
+✅ `CombatSimulation` implementada: simulación determinista ejecutable headless vía `advance(delta)`
 
 Incluye:
 
@@ -73,18 +74,32 @@ Incluye:
 - `WeaponInstance` (dominio; instancia de un `WeaponData` en uso, lleva su propio cooldown)
 - `Enemy` (dominio; vida y progreso en el camino)
 - `Defender` (dominio; compone su capacidad ofensiva vía `WeaponInstance` en vez de tener daño/cadencia embebidos)
+- `MovementPhase` (algoritmo sin estado ni propiedad del dominio; calcula cuánto debería avanzar cada enemigo vivo)
+- `AttackPhase` (algoritmo sin estado ni propiedad del dominio; decide qué defensor ataca a qué enemigo y con cuánto daño)
+- `CombatSimulation` (dominio; única autoridad del combate: dueña del roster de enemigos/defensores y del `CombatPath`, aplica los resultados de las fases y emite las señales)
 - Tests headless
 
 #### Notas de diseño — entidades de combate
 
-- Misma filosofía que el inventario: dominio sin dependencias de Godot, ejecutable headless, separación estricta entre dominio, orquestación (`CombatSimulation`, `MovementPhase`, `AttackPhase`, todavía no implementados) y representación visual (todavía no implementada).
-- `WeaponData` juega el mismo rol que `ShapeData`: definición pura, sin estado, compartible entre múltiples instancias. `WeaponInstance` juega el rol de `InventoryPiece`: instancia con estado de ejecución propio (`cooldown_remaining`), mutado solo mediante métodos privados (`_tick`, `_reset_cooldown`) reservados a un futuro `AttackPhase`. Esta cadena Definition → Runtime Instance → Owner evita que dos `Defender` que comparten el mismo `WeaponData` interfieran entre sí si comparten cooldown por error.
+- Misma filosofía que el inventario: dominio sin dependencias de Godot, ejecutable headless, separación estricta entre dominio (`Enemy`, `Defender`, ...), orquestación (`CombatSimulation`, `MovementPhase`, `AttackPhase`) y representación visual (todavía no implementada).
+- `WeaponData` juega el mismo rol que `ShapeData`: definición pura, sin estado, compartible entre múltiples instancias. `WeaponInstance` juega el rol de `InventoryPiece`: instancia con estado de ejecución propio (`cooldown_remaining`), mutado solo mediante métodos privados (`_tick`, `_reset_cooldown`) reservados a `CombatSimulation`. Esta cadena Definition → Runtime Instance → Owner evita que dos `Defender` que comparten el mismo `WeaponData` interfieran entre sí si comparten cooldown por error.
 - `Defender` no tiene ni `damage` ni `attack_interval` propios: siempre los obtiene a través de su `weapon_instance`, para que el comportamiento ofensivo no quede embebido directamente en la unidad.
-- `Enemy` y `Defender` no se conocen entre sí ni conocen `CombatPath`: cada uno solo protege sus propios invariantes (vida acotada a `[0, max_health]`, progreso nunca negativo). Acotar `path_progress` contra la longitud de un `CombatPath` concreto es responsabilidad de quien los coordina (`MovementPhase`, futuro), no de `Enemy`.
-- Ninguna de estas clases emite señales: no hay todavía una autoridad de combate (`CombatSimulation`) que sea la fuente única de verdad y el único emisor, igual que `InventoryGrid`/`InventoryPieceSource` lo son para el inventario.
+- `Enemy` y `Defender` no se conocen entre sí ni conocen `CombatPath`: cada uno solo protege sus propios invariantes (vida acotada a `[0, max_health]`, progreso nunca negativo). Acotar `path_progress` contra la longitud de un `CombatPath` concreto es responsabilidad de `CombatSimulation`, no de `Enemy`.
+- Ninguna de estas entidades emite señales: `CombatSimulation` es la única autoridad de combate y la única emisora, igual que `InventoryGrid`/`InventoryPieceSource` lo son para el inventario.
+
+#### Notas de diseño — `CombatSimulation`
+
+- `CombatSimulation` es dueña del roster (`Array[Enemy]`, `Array[Defender]`) y del `CombatPath` de la ronda. Esta iteración no crea enemigos ni defensores por sí misma (eso es responsabilidad de un futuro `Wave`/integración con `InventoryGrid`): se añaden desde fuera vía `add_enemy`/`add_defender`. `get_enemies()`/`get_defenders()` devuelven copias del array (mismo patrón que `InventoryGrid.get_pieces()`), para que nadie fuera de `CombatSimulation` pueda mutar el roster.
+- `MovementPhase` y `AttackPhase` son algoritmos sin estado y sin propiedad del dominio: reciben las colecciones necesarias como parámetros y devuelven resultados (`MovementPhase.Result`, `AttackPhase.Result`) describiendo qué debería pasar, sin mutar `Enemy`/`Defender`/`WeaponInstance` ni el roster. `CombatSimulation` decide si aplica cada resultado, es quien realmente invoca los métodos internos (`_advance`, `_take_damage`, `_tick`, `_reset_cooldown`) y quien emite las señales — así se mantiene como la única autoridad del dominio de combate, con un único punto de mutación en todo el sistema.
+- `advance(delta)` se divide en pasos ordenados y deterministas: mover enemigos vivos (`MovementPhase`) → resolver los que llegaron al final del `CombatPath` (remover del roster, emitir `enemy_reached_end`) → tickear cooldowns y resolver ataques (`AttackPhase`, aplicar daño, reiniciar cooldown, emitir `defender_attacked`) → resolver enemigos derrotados (remover del roster, emitir `enemy_defeated`). El tick de cooldown ocurre en `CombatSimulation` antes de llamar a `AttackPhase`, porque es tiempo pasando (no una decisión de combate); `AttackPhase` solo lee `is_ready()`.
+- Regla de selección de objetivo de `AttackPhase` para esta iteración: cada defensor listo ataca al enemigo vivo con mayor `path_progress` (el más cercano a llegar al final del camino). Es deliberadamente mínima porque "Alcance" está fuera de esta iteración: no hay posiciones ni rango, solo el progreso que ya existe en `Enemy`.
+- `CombatSimulation` no expone `enemy_added`/`defender_added`: por ahora solo emite eventos de dominio relevantes (`enemy_reached_end`, `enemy_defeated`, `defender_attacked`).
+- Todo `delta` se recibe como parámetro explícito (nunca leído de `Engine.get_process_delta_time()` ni de un `Timer`), para que la simulación sea determinista y completamente controlable desde tests headless.
 
 ### Próximo objetivo
 
-Implementar `CombatSimulation`, `Wave`, `MovementPhase` y `AttackPhase` para orquestar estas entidades en una oleada completa.
+Implementar `Wave` para poblar el roster de `CombatSimulation` con enemigos a lo largo de una ronda completa.
+
+Integrar `CombatSimulation` con `InventoryGrid` para que las piezas colocadas se conviertan en `Defender`.
 
 Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting).
