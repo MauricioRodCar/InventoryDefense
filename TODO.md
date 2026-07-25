@@ -11,3 +11,17 @@
 [ ] Rotación visual
 [ ] Fusión de piezas
 [ ] Inventario durante partida
+
+## Combate
+
+[x] Dominio base (CombatPath, WeaponData, WeaponInstance, Enemy, Defender)
+[x] CombatSimulation (MovementPhase + AttackPhase): simulación determinista headless vía advance(delta)
+[ ] Wave: generación de enemigos a lo largo de una ronda
+[ ] Integración con InventoryGrid (piezas colocadas -> Defender)
+[ ] Representación visual / UI de combate
+[ ] Animaciones
+[ ] Projectiles
+[ ] Efectos de estado
+[ ] Resistencias
+[ ] Alcance
+[ ] Recompensas
