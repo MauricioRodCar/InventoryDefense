@@ -66,6 +66,7 @@ Incluye:
 Estado:
 ✅ Entidades base del dominio implementadas
 ✅ `CombatSimulation` implementada: simulación determinista ejecutable headless vía `advance(delta)`
+✅ `Wave` implementada: puebla el roster de enemigos automáticamente según un calendario, además del `add_enemy` manual (pruebas)
 
 Incluye:
 
@@ -73,10 +74,13 @@ Incluye:
 - `WeaponData` (dominio; definición pura de daño y cadencia de ataque, compartible entre instancias)
 - `WeaponInstance` (dominio; instancia de un `WeaponData` en uso, lleva su propio cooldown)
 - `Enemy` (dominio; vida y progreso en el camino)
+- `EnemyData` (dominio; definición pura de vida máxima y velocidad de un tipo de enemigo, compartible entre entradas de una `Wave`)
 - `Defender` (dominio; compone su capacidad ofensiva vía `WeaponInstance` en vez de tener daño/cadencia embebidos)
+- `WaveData` (dominio; calendario ordenado de spawn — tiempo + `EnemyData` — sin estado de ejecución)
+- `Wave` (dominio; instancia en ejecución de un `WaveData`, con su propio reloj y cursor; `advance(delta)` devuelve qué `EnemyData` deberían aparecer, sin crear `Enemy`)
 - `MovementPhase` (algoritmo sin estado ni propiedad del dominio; calcula cuánto debería avanzar cada enemigo vivo)
 - `AttackPhase` (algoritmo sin estado ni propiedad del dominio; decide qué defensor ataca a qué enemigo y con cuánto daño)
-- `CombatSimulation` (dominio; única autoridad del combate: dueña del roster de enemigos/defensores y del `CombatPath`, aplica los resultados de las fases y emite las señales)
+- `CombatSimulation` (dominio; única autoridad del combate: dueña del roster de enemigos/defensores, del `CombatPath` y opcionalmente de una `Wave`; aplica los resultados de las fases y emite las señales)
 - Tests headless
 
 #### Notas de diseño — entidades de combate
@@ -89,16 +93,22 @@ Incluye:
 
 #### Notas de diseño — `CombatSimulation`
 
-- `CombatSimulation` es dueña del roster (`Array[Enemy]`, `Array[Defender]`) y del `CombatPath` de la ronda. Esta iteración no crea enemigos ni defensores por sí misma (eso es responsabilidad de un futuro `Wave`/integración con `InventoryGrid`): se añaden desde fuera vía `add_enemy`/`add_defender`. `get_enemies()`/`get_defenders()` devuelven copias del array (mismo patrón que `InventoryGrid.get_pieces()`), para que nadie fuera de `CombatSimulation` pueda mutar el roster.
+- `CombatSimulation` es dueña del roster (`Array[Enemy]`, `Array[Defender]`), del `CombatPath` de la ronda y opcionalmente de una `Wave`. Esta iteración no crea defensores por sí misma (eso es responsabilidad de una futura integración con `InventoryGrid`): se añaden desde fuera vía `add_defender`. Los enemigos pueden añadirse manualmente vía `add_enemy` (uso de pruebas) o poblarse automáticamente a partir de la `Wave`, si se proporcionó una al construir la simulación. `get_enemies()`/`get_defenders()` devuelven copias del array (mismo patrón que `InventoryGrid.get_pieces()`), para que nadie fuera de `CombatSimulation` pueda mutar el roster.
 - `MovementPhase` y `AttackPhase` son algoritmos sin estado y sin propiedad del dominio: reciben las colecciones necesarias como parámetros y devuelven resultados (`MovementPhase.Result`, `AttackPhase.Result`) describiendo qué debería pasar, sin mutar `Enemy`/`Defender`/`WeaponInstance` ni el roster. `CombatSimulation` decide si aplica cada resultado, es quien realmente invoca los métodos internos (`_advance`, `_take_damage`, `_tick`, `_reset_cooldown`) y quien emite las señales — así se mantiene como la única autoridad del dominio de combate, con un único punto de mutación en todo el sistema.
-- `advance(delta)` se divide en pasos ordenados y deterministas: mover enemigos vivos (`MovementPhase`) → resolver los que llegaron al final del `CombatPath` (remover del roster, emitir `enemy_reached_end`) → tickear cooldowns y resolver ataques (`AttackPhase`, aplicar daño, reiniciar cooldown, emitir `defender_attacked`) → resolver enemigos derrotados (remover del roster, emitir `enemy_defeated`). El tick de cooldown ocurre en `CombatSimulation` antes de llamar a `AttackPhase`, porque es tiempo pasando (no una decisión de combate); `AttackPhase` solo lee `is_ready()`.
+- `advance(delta)` se divide en pasos ordenados y deterministas: mover enemigos vivos (`MovementPhase`) → resolver los que llegaron al final del `CombatPath` (remover del roster, emitir `enemy_reached_end`) → spawnear los enemigos que correspondan según la `Wave` (crear `Enemy` a partir de los `EnemyData` liberados, añadirlos al roster, emitir `enemy_spawned`) → tickear cooldowns y resolver ataques (`AttackPhase`, aplicar daño, reiniciar cooldown, emitir `defender_attacked`) → resolver enemigos derrotados (remover del roster, emitir `enemy_defeated`). El tick de cooldown ocurre en `CombatSimulation` antes de llamar a `AttackPhase`, porque es tiempo pasando (no una decisión de combate); `AttackPhase` solo lee `is_ready()`. Spawnear después de mover implica que un enemigo recién aparecido no avanza en el mismo `advance()` en el que fue creado — no existía todavía cuando `MovementPhase` calculó los avances de ese tick.
 - Regla de selección de objetivo de `AttackPhase` para esta iteración: cada defensor listo ataca al enemigo vivo con mayor `path_progress` (el más cercano a llegar al final del camino). Es deliberadamente mínima porque "Alcance" está fuera de esta iteración: no hay posiciones ni rango, solo el progreso que ya existe en `Enemy`.
-- `CombatSimulation` no expone `enemy_added`/`defender_added`: por ahora solo emite eventos de dominio relevantes (`enemy_reached_end`, `enemy_defeated`, `defender_attacked`).
+- `CombatSimulation` no expone `defender_added`: por ahora solo emite eventos de dominio relevantes (`enemy_reached_end`, `enemy_defeated`, `defender_attacked`, `enemy_spawned`).
 - Todo `delta` se recibe como parámetro explícito (nunca leído de `Engine.get_process_delta_time()` ni de un `Timer`), para que la simulación sea determinista y completamente controlable desde tests headless.
 
-### Próximo objetivo
+#### Notas de diseño — `Wave`
 
-Implementar `Wave` para poblar el roster de `CombatSimulation` con enemigos a lo largo de una ronda completa.
+- Mismo patrón Definition → Runtime Instance que `WeaponData`/`WeaponInstance`: `EnemyData` es la definición pura de un tipo de enemigo (vida máxima, velocidad), compartible entre múltiples entradas de spawn sin duplicar estadísticas; `Enemy` sigue siendo la instancia en ejecución, sin cambios en su constructor. `WaveData` es la definición pura del calendario de una oleada (lista ordenada de `SpawnEntry`, cada una con un tiempo y un `EnemyData`); `Wave` es la instancia en ejecución sobre ese `WaveData`, con su propio `elapsed_time` y cursor interno.
+- `Wave.advance(delta)` sigue el mismo patrón que `MovementPhase.advance()`/`AttackPhase.advance()`: es un método que responde con un resultado (`Wave.AdvanceResult`, con `spawned_entries` y `finished`) en vez de mutar nada fuera de sí misma. `Wave` nunca crea `Enemy`, nunca conoce `CombatSimulation` ni recibe una referencia a ella, nunca mueve enemigos, nunca aplica daño y no emite señales — es `CombatSimulation` quien la posee, la empuja en cada `advance(delta)` propio, y quien decide qué hacer con el resultado (instanciar `Enemy` a partir de cada `EnemyData` liberado y añadirlo al roster vía `add_enemy`).
+- `finished` evita que `CombatSimulation` tenga que preguntar continuamente `wave.is_finished()`: el propio resultado de `advance()` ya indica si la oleada agotó su calendario. Deja preparado el camino para una futura señal `wave_completed` sin necesitar polling, aunque esta iteración no la introduce todavía (no hay nada que la dispare fuera de tests) para no dejar código muerto.
+- `WaveData` ordena sus `SpawnEntry` por tiempo ascendente al construirse, para que `Wave` pueda consumirlas con un único cursor monótono (`_next_index`) en vez de reescanear todo el calendario en cada `advance()`.
+- `CombatSimulation.advance(delta)` sigue funcionando exactamente igual que antes cuando no se le proporciona ninguna `Wave` (parámetro opcional, `null` por defecto): `_resolve_spawns()` es un no-op en ese caso, así que todos los tests existentes que pueblan el roster manualmente vía `add_enemy` no necesitaron cambios.
+
+### Próximo objetivo
 
 Integrar `CombatSimulation` con `InventoryGrid` para que las piezas colocadas se conviertan en `Defender`.
 

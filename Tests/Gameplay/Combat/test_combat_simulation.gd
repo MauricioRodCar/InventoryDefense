@@ -7,6 +7,9 @@ const WeaponData = preload("res://Scripts/Gameplay/Combat/weapon_data.gd")
 const WeaponInstance = preload("res://Scripts/Gameplay/Combat/weapon_instance.gd")
 const Enemy = preload("res://Scripts/Gameplay/Combat/enemy.gd")
 const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
+const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
+const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
+const Wave = preload("res://Scripts/Gameplay/Combat/wave.gd")
 const CombatSimulation = preload("res://Scripts/Gameplay/Combat/combat_simulation.gd")
 
 func test_advance_mueve_a_los_enemigos_vivos(t) -> void:
@@ -97,3 +100,35 @@ func test_get_enemies_y_get_defenders_devuelven_copias(t) -> void:
 	enemies.append(Enemy.new(&"e2", 10, 0.0))
 
 	t.assert_eq(simulation.get_enemies().size(), 1, "mutar el array devuelto por get_enemies no debe afectar el roster interno")
+
+func test_una_wave_puebla_el_roster_y_emite_enemy_spawned(t) -> void:
+	var goblin_data := EnemyData.new(&"goblin", 7, 2.0)
+	var wave := Wave.new(WaveData.new([WaveData.SpawnEntry.new(0.0, goblin_data)]))
+	var simulation := CombatSimulation.new(CombatPath.new(100.0), wave)
+	var spawned_events: Array = []
+	simulation.enemy_spawned.connect(func(e): spawned_events.append(e))
+
+	simulation.advance(0.1)
+
+	t.assert_eq(simulation.get_enemies().size(), 1, "un advance que alcanza el tiempo de una entrada debe añadir un enemigo al roster")
+	var spawned_enemy: Enemy = simulation.get_enemies()[0]
+	t.assert_eq(spawned_enemy.id, &"goblin", "el enemigo creado debe usar el id del EnemyData de la entrada")
+	t.assert_eq(spawned_enemy.max_health, 7, "el enemigo creado debe usar la vida máxima del EnemyData de la entrada")
+	t.assert_eq(spawned_enemy.speed, 2.0, "el enemigo creado debe usar la velocidad del EnemyData de la entrada")
+	t.assert_eq(spawned_events, [spawned_enemy], "enemy_spawned debe emitirse con el enemigo recién creado")
+
+func test_un_enemigo_recien_spawneado_no_se_mueve_en_el_mismo_advance(t) -> void:
+	var goblin_data := EnemyData.new(&"goblin", 7, 5.0)
+	var wave := Wave.new(WaveData.new([WaveData.SpawnEntry.new(0.0, goblin_data)]))
+	var simulation := CombatSimulation.new(CombatPath.new(100.0), wave)
+
+	simulation.advance(1.0)
+
+	t.assert_eq(simulation.get_enemies()[0].path_progress, 0.0, "un enemigo no debe avanzar en el mismo advance en el que fue spawneado")
+
+func test_sin_wave_advance_no_agrega_enemigos_por_si_solo(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+
+	simulation.advance(1.0)
+
+	t.assert_eq(simulation.get_enemies().size(), 0, "sin una Wave configurada, advance no debe poblar el roster de enemigos")
