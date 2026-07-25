@@ -11,6 +11,7 @@ const InventoryGrid = preload("res://Scripts/Gameplay/Inventory/inventory_grid.g
 const InventoryPiece = preload("res://Scripts/Gameplay/Inventory/inventory_piece.gd")
 const InventoryPieceSource = preload("res://Scripts/Gameplay/Inventory/inventory_piece_source.gd")
 const InventoryDragGhostView = preload("res://Scripts/UI/Inventory/inventory_drag_ghost_view.gd")
+const InventoryPlacementPreviewView = preload("res://Scripts/UI/Inventory/inventory_placement_preview_view.gd")
 
 var grid_view: InventoryGridView
 var source_view: InventoryPieceSourceView
@@ -23,6 +24,8 @@ var _drag_origin_anchor: Vector2i
 var _drag_grab_offset: Vector2
 var _drag_grab_cell_offset: Vector2i
 var _ghost: InventoryDragGhostView
+var _preview: InventoryPlacementPreviewView
+var _last_preview_anchor = null # Vector2i cuando hay una evaluación previa, null al iniciar cada drag.
 
 func set_inventory_grid(grid: InventoryGrid) -> void:
 	_grid = grid
@@ -64,8 +67,11 @@ func _try_begin_drag_from_source() -> bool:
 	_dragged_piece = piece
 	_drag_grab_cell_offset = Vector2i.ZERO
 	_drag_grab_offset = Vector2.ZERO
+	var grid_local_pos: Vector2 = grid_view.get_local_mouse_position()
+	_preview = _create_preview(piece)
 	_ghost = _create_ghost(piece)
-	_ghost.position = grid_view.get_local_mouse_position()
+	_ghost.position = grid_local_pos
+	_update_placement_preview(grid_local_pos)
 	return true
 
 ## Origen: una pieza ya colocada en InventoryGrid.
@@ -81,13 +87,32 @@ func _try_begin_drag_from_grid() -> bool:
 	_drag_grab_cell_offset = cell - piece.anchor
 	_drag_grab_offset = local_pos - grid_view.cell_to_position(piece.anchor)
 	_take_piece_from_grid(piece)
+	_preview = _create_preview(piece)
 	_ghost = _create_ghost(piece)
 	_ghost.position = local_pos - _drag_grab_offset
+	_update_placement_preview(local_pos)
 	return true
 
 func _update_drag() -> void:
 	var local_pos: Vector2 = grid_view.get_local_mouse_position()
 	_ghost.position = local_pos - _drag_grab_offset
+	_update_placement_preview(local_pos)
+
+## Recalcula la celda ancla candidata bajo el cursor y, solo si cambió
+## respecto a la última evaluada, vuelve a consultar
+## InventoryGrid.can_place() y empuja el nuevo estado al preview. Evita
+## invocar can_place() en cada píxel de movimiento del ratón: el número de
+## consultas queda acotado a las celdas distintas que el cursor cruza.
+func _update_placement_preview(local_pos: Vector2) -> void:
+	var cursor_cell: Vector2i = grid_view.position_to_cell(local_pos)
+	var candidate_anchor: Vector2i = cursor_cell - _drag_grab_cell_offset
+	if candidate_anchor == _last_preview_anchor:
+		return
+	_last_preview_anchor = candidate_anchor
+	var state: InventoryPlacementPreviewView.State = InventoryPlacementPreviewView.State.VALID \
+		if _grid.can_place(_dragged_piece, candidate_anchor) \
+		else InventoryPlacementPreviewView.State.INVALID
+	_preview.show_at(grid_view.cell_to_position(candidate_anchor), state)
 
 func _end_drag() -> void:
 	var piece: InventoryPiece = _dragged_piece
@@ -101,6 +126,7 @@ func _end_drag() -> void:
 	else:
 		_settle_piece_at(piece, _drag_origin_anchor)
 	_destroy_ghost()
+	_destroy_preview()
 	_dragged_piece = null
 
 ## Aislado para poder sustituirse por una operación atómica (p. ej. un futuro
@@ -122,3 +148,15 @@ func _destroy_ghost() -> void:
 	if _ghost != null:
 		_ghost.queue_free()
 		_ghost = null
+
+func _create_preview(piece: InventoryPiece) -> InventoryPlacementPreviewView:
+	var preview := InventoryPlacementPreviewView.new()
+	grid_view.add_child(preview)
+	preview.setup(piece.shape, grid_view.cell_size)
+	return preview
+
+func _destroy_preview() -> void:
+	if _preview != null:
+		_preview.queue_free()
+		_preview = null
+	_last_preview_anchor = null
