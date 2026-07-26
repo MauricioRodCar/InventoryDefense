@@ -176,9 +176,32 @@ Incluye:
 - `main.gd` construye un `DefenderCatalog` y una `WaveData` de sandbox (un `DefenderData` por cada tipo de pieza que ofrece `InventoryPieceSourceSandbox`, y un calendario fijo de enemigos de prueba), mismo espíritu que `InventoryPieceSourceSandbox`: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
 - Disparador temporal de "Start Battle" (sin UI definitiva todavía): pulsar aceptar (Enter/Espacio, acción `ui_accept`) llama `BattleRunner.start()` una vez, mientras el runner siga en `IDLE`. `main.gd` sigue siendo el único composition root: no conoce nada interno de `BattleRunner`/`CombatSimulation`, solo cablea referencias y decide cuándo arranca la batalla.
 
+### Economía
+
+Estado:
+✅ `PlayerEconomy` implementada: única autoridad sobre el oro del jugador
+✅ `EnemyRewardCatalog` implementado: mapeo de `EnemyData.id` a recompensa en oro
+✅ `BattleRunner` acredita oro al derrotar enemigos, sin asumir responsabilidades adicionales de progresión
+
+Incluye:
+
+- `PlayerEconomy` (dominio; sin dependencias de Godot; única autoridad sobre el oro del jugador — invariante: el oro nunca es negativo)
+- `EnemyRewardCatalog` (dominio; mapeo puro entre `EnemyData.id` y el oro que otorga derrotar ese tipo de enemigo, sin conocer `Enemy`, `CombatSimulation` ni `PlayerEconomy` — mismo rol que `DefenderCatalog` respecto a `InventoryPiece`/`DefenderData`)
+- Tests headless
+
+#### Notas de diseño — Economía
+
+- `PlayerEconomy` no expone ninguna forma de gastar oro todavía: no hay tienda, recompensas de fin de oleada, `BattleReward`, `BattleRewardTracker`, `RunController` ni máquinas de estados en esta iteración — solo la autoridad mínima necesaria para que exista una fuente de oro. `add_gold(amount)` asume `amount > 0` (falla con `assert`); es responsabilidad de quien llama no invocarlo con una recompensa nula o negativa.
+- `EnemyRewardCatalog.get_gold_reward(enemy_id)` devuelve `0` para una clave sin entrada, en vez de fallar, igual que `DefenderCatalog.get_defender_data()` devuelve `null` para una pieza sin mapeo: un enemigo sin recompensa configurada no debe romper el resto del sistema.
+- `CombatSimulation` sigue siendo completamente ajena a la economía: no conoce `PlayerEconomy` ni `EnemyRewardCatalog`, y no se modificó para esta iteración. Todo el cableado vive en `BattleRunner`.
+- `BattleRunner` gana dos campos opcionales, `player_economy` y `enemy_reward_catalog`, asignados desde fuera antes de `start()` (mismo patrón que `battle_view`). Si ambos están presentes, `start()` conecta `enemy_defeated` a un método privado que consulta la recompensa y, solo si es mayor que 0, llama `player_economy.add_gold()` — evitando violar el invariante de `add_gold` para enemigos sin recompensa configurada. Sin ambos campos asignados, `BattleRunner` se comporta exactamente igual que antes de esta iteración.
+- `main.gd` construye un `PlayerEconomy` y un `EnemyRewardCatalog` de sandbox (una recompensa para el único tipo de enemigo de su `WaveData` de prueba), mismo espíritu que su `DefenderCatalog`/`WaveData` de sandbox: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
+
 ### Próximo objetivo
 
-Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting).
+Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting) — probablemente la primera consumidora real de `PlayerEconomy` (gastar oro), todavía sin implementar.
+
+Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
 
 Resolver la deuda técnica de `InventoryPiece.id` (separar identidad de instancia de identidad de tipo) antes de que esa fuente real pueda ofrecer piezas repetidas.
 

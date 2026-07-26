@@ -14,6 +14,8 @@ const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
 const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
 const DefenderData = preload("res://Scripts/Gameplay/Bridge/defender_data.gd")
 const DefenderCatalog = preload("res://Scripts/Gameplay/Bridge/defender_catalog.gd")
+const PlayerEconomy = preload("res://Scripts/Gameplay/Economy/player_economy.gd")
+const EnemyRewardCatalog = preload("res://Scripts/Gameplay/Economy/enemy_reward_catalog.gd")
 
 @onready var _grid_view: InventoryGridView = $InventoryGridView
 @onready var _source_view: InventoryPieceSourceView = $InventoryPieceSourceView
@@ -25,6 +27,8 @@ var _grid: InventoryGrid
 var _combat_path: CombatPath
 var _defender_catalog: DefenderCatalog
 var _wave_data: WaveData
+var _player_economy: PlayerEconomy
+var _enemy_reward_catalog: EnemyRewardCatalog
 
 func _ready() -> void:
 	_grid = InventoryGrid.new(6, 6)
@@ -41,8 +45,12 @@ func _ready() -> void:
 	_combat_path = CombatPath.new(400.0)
 	_defender_catalog = _build_sandbox_defender_catalog()
 	_wave_data = _build_sandbox_wave_data()
+	_player_economy = PlayerEconomy.new()
+	_enemy_reward_catalog = _build_sandbox_enemy_reward_catalog()
 
 	_battle_runner.battle_view = _battle_view
+	_battle_runner.player_economy = _player_economy
+	_battle_runner.enemy_reward_catalog = _enemy_reward_catalog
 
 ## Disparador temporal de "Start Battle" para esta vertical slice (sin UI
 ## definitiva todavía): pulsar aceptar arranca la única batalla posible una
@@ -69,4 +77,12 @@ func _build_sandbox_wave_data() -> WaveData:
 		WaveData.SpawnEntry.new(0.0, goblin),
 		WaveData.SpawnEntry.new(2.0, goblin),
 		WaveData.SpawnEntry.new(4.0, goblin),
+	])
+
+## Catálogo de prueba: recompensa en oro por cada tipo de enemigo de la
+## WaveData de sandbox. A reemplazar cuando exista una fuente real de
+## configuración de ronda.
+func _build_sandbox_enemy_reward_catalog() -> EnemyRewardCatalog:
+	return EnemyRewardCatalog.new([
+		EnemyRewardCatalog.Entry.new(&"goblin", 5),
 	])
