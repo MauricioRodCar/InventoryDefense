@@ -9,6 +9,17 @@ const AttackPhase = preload("res://Scripts/Gameplay/Combat/attack_phase.gd")
 const HighestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/highest_progress_targeting_policy.gd")
 const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_health_targeting_policy.gd")
 const LowestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_progress_targeting_policy.gd")
+const WeaponBehavior = preload("res://Scripts/Gameplay/Combat/weapon_behavior.gd")
+const SingleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/single_shot_weapon_behavior.gd")
+
+## Test double: un WeaponBehavior que siempre produce dos impactos sobre el
+## objetivo prioritario. Existe únicamente para probar que AttackPhase
+## delega en el WeaponBehavior compuesto la cantidad de impactos, en vez de
+## asumir siempre un único Result por defensor.
+class DoubleHitWeaponBehaviorStub:
+	extends WeaponBehavior
+	func resolve(damage: int, primary_target: Enemy, enemies: Array[Enemy]) -> Array[Hit]:
+		return [Hit.new(primary_target, damage), Hit.new(primary_target, damage)]
 
 func test_un_defensor_listo_ataca_al_unico_enemigo_vivo(t) -> void:
 	var enemy := Enemy.new(&"e1", 10, 1.0)
@@ -107,3 +118,30 @@ func test_defensores_sin_targeting_policy_explicita_usan_highest_progress_por_de
 	var results := phase.advance([defender], [behind, ahead])
 
 	t.assert_eq(results[0].target, ahead, "un Defender sin targeting_policy explícita debe conservar la regla previa de AttackPhase: mayor path_progress")
+
+func test_defensor_con_weapon_behavior_por_defecto_produce_un_unico_result(t) -> void:
+	var enemy := Enemy.new(&"e1", 10, 1.0)
+	var weapon_data := WeaponData.new(&"sword", 5, 1.0)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	var phase := AttackPhase.new()
+
+	t.assert_true(weapon_data.weapon_behavior is SingleShotWeaponBehavior, "WeaponData sin weapon_behavior explícito debe defaultear a SingleShotWeaponBehavior")
+
+	var results := phase.advance([defender], [enemy])
+
+	t.assert_eq(results.size(), 1, "con el WeaponBehavior por defecto, un defensor listo debe seguir produciendo exactamente un Result")
+	t.assert_eq(results[0].target, enemy, "el Result debe apuntar al único enemigo vivo")
+	t.assert_eq(results[0].damage, 5, "el daño del Result debe ser el daño base del arma")
+
+func test_attack_phase_delega_en_weapon_behavior_la_cantidad_de_impactos(t) -> void:
+	var enemy := Enemy.new(&"e1", 10, 1.0)
+	var weapon_data := WeaponData.new(&"double", 5, 1.0, DoubleHitWeaponBehaviorStub.new())
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	var phase := AttackPhase.new()
+
+	var results := phase.advance([defender], [enemy])
+
+	t.assert_eq(results.size(), 2, "AttackPhase debe producir tantos Result como impactos devuelva el WeaponBehavior compuesto: no es AttackPhase quien decide la cantidad de impactos")
+	t.assert_eq(results[0].defender, defender, "cada Result generado a partir de un impacto debe referenciar al defensor que ataca")
+	t.assert_eq(results[0].target, enemy, "cada Result debe reflejar el objetivo devuelto por el impacto")
+	t.assert_eq(results[1].damage, 5, "cada Result debe reflejar el daño devuelto por el impacto")
