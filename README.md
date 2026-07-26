@@ -103,12 +103,13 @@ Incluye:
 - Regla de selección de objetivo de `AttackPhase` para esta iteración: cada defensor listo ataca al enemigo vivo con mayor `path_progress` (el más cercano a llegar al final del camino). Es deliberadamente mínima porque "Alcance" está fuera de esta iteración: no hay posiciones ni rango, solo el progreso que ya existe en `Enemy`.
 - `CombatSimulation` no expone `defender_added`: por ahora solo emite eventos de dominio relevantes (`enemy_reached_end`, `enemy_defeated`, `defender_attacked`, `enemy_spawned`).
 - Todo `delta` se recibe como parámetro explícito (nunca leído de `Engine.get_process_delta_time()` ni de un `Timer`), para que la simulación sea determinista y completamente controlable desde tests headless.
+- `is_battle_over()` es la única autoridad sobre si la batalla terminó (`Wave` agotada y roster de enemigos vacío; sin `Wave` configurada siempre es `false`, no hay noción de "fin" sin oleada). Se añadió como prerequisito aislado para `BattleRunner` (ver Battle): sin esto, nada fuera de `CombatSimulation` podía saber cuándo dejar de llamar `advance(delta)`.
 
 #### Notas de diseño — `Wave`
 
 - Mismo patrón Definition → Runtime Instance que `WeaponData`/`WeaponInstance`: `EnemyData` es la definición pura de un tipo de enemigo (vida máxima, velocidad), compartible entre múltiples entradas de spawn sin duplicar estadísticas; `Enemy` sigue siendo la instancia en ejecución, sin cambios en su constructor. `WaveData` es la definición pura del calendario de una oleada (lista ordenada de `SpawnEntry`, cada una con un tiempo y un `EnemyData`); `Wave` es la instancia en ejecución sobre ese `WaveData`, con su propio `elapsed_time` y cursor interno.
 - `Wave.advance(delta)` sigue el mismo patrón que `MovementPhase.advance()`/`AttackPhase.advance()`: es un método que responde con un resultado (`Wave.AdvanceResult`, con `spawned_entries` y `finished`) en vez de mutar nada fuera de sí misma. `Wave` nunca crea `Enemy`, nunca conoce `CombatSimulation` ni recibe una referencia a ella, nunca mueve enemigos, nunca aplica daño y no emite señales — es `CombatSimulation` quien la posee, la empuja en cada `advance(delta)` propio, y quien decide qué hacer con el resultado (instanciar `Enemy` a partir de cada `EnemyData` liberado y añadirlo al roster vía `add_enemy`).
-- `finished` evita que `CombatSimulation` tenga que preguntar continuamente `wave.is_finished()`: el propio resultado de `advance()` ya indica si la oleada agotó su calendario. Deja preparado el camino para una futura señal `wave_completed` sin necesitar polling, aunque esta iteración no la introduce todavía (no hay nada que la dispare fuera de tests) para no dejar código muerto.
+- `finished` evita que `CombatSimulation` tenga que preguntar continuamente `wave.is_finished()`: el propio resultado de `advance()` ya indica si la oleada agotó su calendario. `CombatSimulation` lo usa para emitir `wave_completed` una única vez, en la transición false→true (ver Battle: fue el prerequisito que desbloqueó a `BattleRunner` para saber cuándo terminó una batalla).
 - `WaveData` ordena sus `SpawnEntry` por tiempo ascendente al construirse, para que `Wave` pueda consumirlas con un único cursor monótono (`_next_index`) en vez de reescanear todo el calendario en cada `advance()`.
 - `CombatSimulation.advance(delta)` sigue funcionando exactamente igual que antes cuando no se le proporciona ninguna `Wave` (parámetro opcional, `null` por defecto): `_resolve_spawns()` es un no-op en ese caso, así que todos los tests existentes que pueblan el roster manualmente vía `add_enemy` no necesitaron cambios.
 
@@ -134,10 +135,48 @@ Incluye:
 - `CombatSimulationBuilder.build()` no retiene ninguna referencia entre llamadas (el `InventoryGrid`, el `CombatPath`, la `WaveData` y el `DefenderCatalog` se reciben como parámetros explícitos cada vez): puede reutilizarse para iniciar tantos combates como haga falta sin arrastrar estado entre ellos. Esto deja preparado el terreno para que distintos modos de juego (campaña, endless, jefes, etc.) reutilicen la misma pieza sin que ella necesite saber nada sobre el modo que la invoca.
 - `CombatSimulationBuilder` no modifica la API pública de `CombatSimulation`: sigue construyéndola con `_init(path, wave)` y añadiendo defensores vía `add_defender()`, el mismo punto de extensión que `CombatSimulation` ya dejaba preparado desde antes de que existiera el bridge.
 
+### Battle (ejecución de una batalla completa)
+
+Estado:
+✅ `BattleRunner` implementado: ejecuta el ciclo de vida completo de una batalla (`IDLE` → `RUNNING` → `FINISHED`) sobre una `CombatSimulation` construida vía `CombatSimulationBuilder`
+✅ `BattleView` implementada: representación visual mínima (primitivas) reactiva a `CombatSimulation`, sincronizada explícitamente por `BattleRunner` tras cada `advance(delta)`
+✅ Vertical slice funcional de punta a punta: colocar piezas en el grid → disparador temporal de "Start Battle" → la oleada se mueve, es atacada por los defensores traducidos desde el grid, y la batalla se da por terminada sola
+
+Incluye:
+
+- `BattleRunner` (`Scripts/Gameplay/Battle/`; orquestación, `Node` — necesita `_process(delta)` para avanzar la simulación cada frame y sitio en el árbol de escena para que `main.gd` lo cablee, igual que `InventoryInteractionController` en Inventory). Única responsabilidad: el ciclo de vida temporal de una batalla. Construye la `CombatSimulation` una vez vía `CombatSimulationBuilder.build()`, la entrega a `battle_view`, y cada frame llama `simulation.advance(delta)` → `battle_view.sync()` → comprueba `simulation.is_battle_over()`.
+- `BattleView`, `EnemyView`, `DefenderView`, `CombatPathView` (`Scripts/UI/Battle/`; representación visual, sin dependencias del dominio hacia ellas)
+- Tests headless para el prerequisito añadido a `CombatSimulation` (`wave_completed`, `is_battle_over()`); `BattleRunner`/`BattleView` y las vistas no tienen tests headless, mismo criterio que el resto de la capa de `UI/` y de `InventoryInteractionController`
+
+#### Notas de diseño — `BattleRunner`
+
+- `state: State` (`IDLE`/`RUNNING`/`FINISHED`) es explícito y se expone junto a la señal `state_changed`, en vez de inferirse de si `_simulation` es `null` o si `_process` está activo. Deja preparado el terreno para pausa, aceleración de tiempo o una futura fase de preparación sin tener que rediseñar cómo se consulta el estado del runner.
+- `BattleRunner` posee la `CombatSimulation` directamente; no existe ningún objeto intermedio entre ambos (no había ningún problema que lo justificara).
+- `BattleRunner` conoce `InventoryGrid` únicamente como parámetro de paso hacia `CombatSimulationBuilder.build()` (acoplamiento estructural, no de comportamiento): no llama ningún método de `InventoryGrid`, así que no rompe la invariante de Bridge de que "solo `CombatSimulationBuilder` conoce Inventory y Combat a la vez" en ningún sentido operativo.
+- `BattleRunner` sostiene una referencia a `battle_view` (asignada desde fuera por `main.gd`, mismo patrón que `grid_view`/`source_view` en `InventoryInteractionController`) y, tras cada `advance(delta)`, llama explícitamente `battle_view.sync()`. No relee ni reinterpreta las señales de `CombatSimulation`: esas siguen fluyendo directo de la simulación a `battle_view` (conectadas en `BattleView.set_combat_simulation()`), `BattleRunner` nunca se convierte en relay de señales.
+
+#### Notas de diseño — `BattleView` y las vistas de batalla
+
+- Mismo patrón reactivo que `InventoryGridView`: `BattleView.set_combat_simulation()` se conecta a `enemy_spawned`/`enemy_defeated`/`enemy_reached_end` para crear/destruir `EnemyView` (Dictionary `Enemy -> EnemyView`, igual que `_piece_views` en `InventoryGridView`). `CombatSimulation` nunca conoce `BattleView` ni ninguna clase de vista.
+- El movimiento (`path_progress`) y la vida no tienen señal propia — moverse no es un evento de dominio — así que no hay forma reactiva pura de mantenerlos sincronizados. En vez de que `EnemyView` haga polling del dominio en su propio `_process()`, `BattleView.sync()` (llamado explícitamente por `BattleRunner`, nunca por las vistas) empuja la posición y vida ya resueltas a cada `EnemyView` vía `update_state()`. `EnemyView`/`DefenderView` son `Node2D` puros sin `_process` propio y sin referencia al dominio: solo primitivas (`draw_circle`/`draw_rect`) que pintan lo último que se les entregó.
+- `CombatPathView` es la única clase que traduce el `path_progress` lógico de un `Enemy` a una posición de mundo (línea recta entre dos puntos configurables). `CombatPath` (dominio) sigue siendo solo una longitud lógica, sin geometría — la traducción a posiciones de escena, tal como ya anticipaban las notas de Combate, vive enteramente en `CombatPathView`.
+- `Defender` no lleva posición propia y `DefenderTranslator` no preserva el `anchor` original de la `InventoryPiece` traducida (ver notas de Bridge). Resolverlo tocaría Bridge, un segundo sistema. Para esta iteración, `BattleView` distribuye los `DefenderView` en una fila por índice de `get_defenders()`, sin relación con la celda original en el inventario — deuda conocida, mismo espíritu que la de `InventoryPiece.id`, pendiente de una branch de Bridge si llega a importar que el defensor se vea "en su celda".
+- Como `CombatSimulation` no expone `defender_added`, `BattleView` no puede reaccionar a defensores por señal: los toma una única vez, por snapshot (`get_defenders()`), en `set_combat_simulation()`. No hace falta más porque esta iteración no añade ni remueve defensores durante la batalla.
+
+#### Notas de diseño — integración con `main.gd`
+
+- `main.gd` retiene ahora `InventoryGrid` como campo (antes era variable local de `_ready()`) para poder entregársela a `BattleRunner.start()` cuando arranca la batalla.
+- `main.gd` construye un `DefenderCatalog` y una `WaveData` de sandbox (un `DefenderData` por cada tipo de pieza que ofrece `InventoryPieceSourceSandbox`, y un calendario fijo de enemigos de prueba), mismo espíritu que `InventoryPieceSourceSandbox`: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
+- Disparador temporal de "Start Battle" (sin UI definitiva todavía): pulsar aceptar (Enter/Espacio, acción `ui_accept`) llama `BattleRunner.start()` una vez, mientras el runner siga en `IDLE`. `main.gd` sigue siendo el único composition root: no conoce nada interno de `BattleRunner`/`CombatSimulation`, solo cablea referencias y decide cuándo arranca la batalla.
+
 ### Próximo objetivo
 
 Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting).
 
 Resolver la deuda técnica de `InventoryPiece.id` (separar identidad de instancia de identidad de tipo) antes de que esa fuente real pueda ofrecer piezas repetidas.
 
-Conectar `CombatSimulationBuilder` con una UI real de "Start Battle" y una representación visual del combate (todavía no implementada).
+Reemplazar el disparador temporal de "Start Battle" (Enter/Espacio) por una UI real, y el `DefenderCatalog`/`WaveData` de sandbox de `main.gd` por una configuración real de ronda.
+
+Resolver, en una branch de Bridge, que un `DefenderView` se posicione según el `anchor` original de su `InventoryPiece` en vez de en una fila por índice.
+
+Sprites, animaciones, proyectiles, efectos, barra de vida, múltiples caminos, varias oleadas, pausa, aceleración de tiempo, replay y distintos modos de juego siguen fuera de alcance; el diseño de Battle (estado explícito en `BattleRunner`, `delta` explícito en `advance()`, vistas puramente reactivas) quedó pensado para no requerir tocar `CombatSimulation` al añadirlos, salvo múltiples caminos/oleadas, que sí son extensiones de dominio legítimas.
