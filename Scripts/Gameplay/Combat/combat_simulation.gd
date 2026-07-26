@@ -6,7 +6,8 @@ extends RefCounted
 ## WeaponInstance). MovementPhase y AttackPhase son algoritmos sin estado
 ## ni propiedad del dominio: reciben colecciones como parámetros y
 ## devuelven resultados; CombatSimulation decide si los aplica, y es el
-## único emisor de señales de combate.
+## único emisor de señales de combate. is_battle_over() es la única autoridad
+## sobre si la batalla terminó (Wave agotada y roster de enemigos vacío).
 ##
 ## No sabe nada de InventoryGrid, UI, animaciones, proyectiles, efectos de
 ## estado, resistencias, alcance ni recompensas: esta iteración asume que
@@ -25,9 +26,11 @@ signal enemy_reached_end(enemy: Enemy)
 signal enemy_defeated(enemy: Enemy)
 signal defender_attacked(defender: Defender, target: Enemy, damage: int)
 signal enemy_spawned(enemy: Enemy)
+signal wave_completed
 
 var _path: CombatPath
 var _wave: Wave
+var _wave_finished: bool = false
 var _enemies: Array[Enemy] = []
 var _defenders: Array[Defender] = []
 var _movement_phase: MovementPhase
@@ -50,6 +53,13 @@ func get_enemies() -> Array[Enemy]:
 
 func get_defenders() -> Array[Defender]:
 	return _defenders.duplicate()
+
+## Cierto cuando hay una Wave configurada, agotó su calendario y no quedan
+## enemigos vivos en el roster. Sin Wave no hay noción de "fin de batalla"
+## (siempre false), igual que sin Wave advance() nunca puebla el roster por
+## sí solo.
+func is_battle_over() -> bool:
+	return _wave != null and _wave_finished and _enemies.is_empty()
 
 ## Avanza la simulación un paso determinista: mueve enemigos, resuelve los
 ## que llegaron al final del camino, spawnea los enemigos que correspondan
@@ -87,6 +97,9 @@ func _resolve_spawns(delta: float) -> void:
 		var enemy := Enemy.new(enemy_data.id, enemy_data.max_health, enemy_data.speed)
 		add_enemy(enemy)
 		enemy_spawned.emit(enemy)
+	if result.finished and not _wave_finished:
+		_wave_finished = true
+		wave_completed.emit()
 
 ## El cooldown de cada WeaponInstance avanza aquí, antes de que AttackPhase
 ## decida quién ataca: es tiempo pasando, no una decisión de combate.

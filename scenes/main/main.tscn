@@ -1,9 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://dmmvrg6midvd5"]
+[gd_scene load_steps=7 format=3 uid="uid://dmmvrg6midvd5"]
 
 [ext_resource type="Script" path="res://Scripts/Main/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryGridView.tscn" id="2"]
 [ext_resource type="Script" path="res://Scripts/UI/Inventory/inventory_interaction_controller.gd" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryPieceSourceView.tscn" id="4"]
+[ext_resource type="Script" path="res://Scripts/Gameplay/Battle/battle_runner.gd" id="5"]
+[ext_resource type="Script" path="res://Scripts/UI/Battle/battle_view.gd" id="6"]
 
 [node name="Node2D" type="Node2D" unique_id=426169063]
 script = ExtResource("1")
@@ -20,3 +22,14 @@ mouse_filter = 2
 
 [node name="InventoryInteractionController" type="Node" parent="."]
 script = ExtResource("3")
+
+[node name="BattleRunner" type="Node" parent="."]
+script = ExtResource("5")
+
+[node name="BattleView" type="Node2D" parent="."]
+position = Vector2(600, 200)
+script = ExtResource("6")
+path_start = Vector2(0, 0)
+path_end = Vector2(400, 0)
+defender_row_position = Vector2(0, 80)
+defender_spacing = 32.0

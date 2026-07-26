@@ -132,3 +132,35 @@ func test_sin_wave_advance_no_agrega_enemigos_por_si_solo(t) -> void:
 	simulation.advance(1.0)
 
 	t.assert_eq(simulation.get_enemies().size(), 0, "sin una Wave configurada, advance no debe poblar el roster de enemigos")
+
+func test_sin_wave_is_battle_over_siempre_es_falso(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+	simulation.add_enemy(Enemy.new(&"e1", 10, 0.0))
+
+	simulation.advance(1.0)
+
+	t.assert_true(not simulation.is_battle_over(), "sin Wave no hay noción de fin de batalla, aunque el roster esté vacío o no")
+
+func test_wave_completed_se_emite_una_sola_vez_al_agotar_el_calendario(t) -> void:
+	var wave := Wave.new(WaveData.new([WaveData.SpawnEntry.new(0.0, EnemyData.new(&"goblin", 7, 2.0))]))
+	var simulation := CombatSimulation.new(CombatPath.new(100.0), wave)
+	var completed_events: Array = []
+	simulation.wave_completed.connect(func(): completed_events.append(true))
+
+	simulation.advance(0.1)
+	t.assert_eq(completed_events.size(), 1, "wave_completed debe emitirse en cuanto la wave agota su calendario")
+
+	simulation.advance(0.1)
+	t.assert_eq(completed_events.size(), 1, "wave_completed no debe volver a emitirse en advances posteriores")
+
+func test_is_battle_over_solo_cuando_la_wave_termino_y_no_quedan_enemigos(t) -> void:
+	var wave := Wave.new(WaveData.new([WaveData.SpawnEntry.new(0.0, EnemyData.new(&"goblin", 7, 0.0))]))
+	var simulation := CombatSimulation.new(CombatPath.new(100.0), wave)
+
+	simulation.advance(0.1)
+	t.assert_true(not simulation.is_battle_over(), "la wave terminó pero el enemigo spawneado sigue vivo en el roster")
+
+	var enemy: Enemy = simulation.get_enemies()[0]
+	enemy._take_damage(7)
+	simulation.advance(0.1)
+	t.assert_true(simulation.is_battle_over(), "wave agotada y sin enemigos vivos: la batalla debe darse por terminada")
