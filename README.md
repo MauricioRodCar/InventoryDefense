@@ -83,7 +83,8 @@ Incluye:
 - `WaveData` (dominio; calendario ordenado de spawn — tiempo + `EnemyData` — sin estado de ejecución)
 - `Wave` (dominio; instancia en ejecución de un `WaveData`, con su propio reloj y cursor; `advance(delta)` devuelve qué `EnemyData` deberían aparecer, sin crear `Enemy`)
 - `MovementPhase` (algoritmo sin estado ni propiedad del dominio; calcula cuánto debería avanzar cada enemigo vivo)
-- `AttackPhase` (algoritmo sin estado ni propiedad del dominio; decide qué defensor ataca a qué enemigo y con cuánto daño)
+- `TargetingPolicy` (algoritmo sin estado ni propiedad del dominio; decide qué enemigo vivo es el objetivo de un ataque)
+- `AttackPhase` (algoritmo sin estado ni propiedad del dominio; decide qué defensor ataca y con cuánto daño, delegando en `TargetingPolicy` a quién)
 - `CombatSimulation` (dominio; única autoridad del combate: dueña del roster de enemigos/defensores, del `CombatPath` y opcionalmente de una `Wave`; aplica los resultados de las fases y emite las señales)
 - Tests headless
 
@@ -94,6 +95,7 @@ Incluye:
 - `Defender` no tiene ni `damage` ni `attack_interval` propios: siempre los obtiene a través de su `weapon_instance`, para que el comportamiento ofensivo no quede embebido directamente en la unidad.
 - `Enemy` y `Defender` no se conocen entre sí ni conocen `CombatPath`: cada uno solo protege sus propios invariantes (vida acotada a `[0, max_health]`, progreso nunca negativo). Acotar `path_progress` contra la longitud de un `CombatPath` concreto es responsabilidad de `CombatSimulation`, no de `Enemy`.
 - Ninguna de estas entidades emite señales: `CombatSimulation` es la única autoridad de combate y la única emisora, igual que `InventoryGrid`/`InventoryPieceSource` lo son para el inventario.
+- `TargetingPolicy` se extrajo de `AttackPhase` (la regla de selección era antes un método privado suyo) para que `AttackPhase` no crezca cada vez que aparezca una nueva regla de selección de objetivo. Por ahora existe una única política, compartida por todos los defensores, con exactamente la misma regla mínima de antes (mayor `path_progress` entre los enemigos vivos, sin alcance ni posiciones). Deliberadamente no se introduce todavía ninguna variedad de `TargetingPolicy` por defensor (eso implicaría que `Defender`/`DefenderData` compongan una referencia a la política, y a `DefenderTranslator` propagarla): se espera a que exista una segunda regla de selección realmente necesaria antes de construir esa composición, para no incurrir en abstracción prematura.
 
 #### Notas de diseño — `CombatSimulation`
 

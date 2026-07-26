@@ -9,9 +9,13 @@ extends RefCounted
 ## Asume que el cooldown de cada WeaponInstance ya fue avanzado (tickeado)
 ## por CombatSimulation antes de llamar a advance(): esta fase solo lee
 ## is_ready(), nunca tickea el cooldown.
+##
+## La selección de objetivo no vive aquí: se delega en un TargetingPolicy
+## propio, para que AttackPhase no crezca con cada regla de selección nueva.
 
 const Enemy = preload("res://Scripts/Gameplay/Combat/enemy.gd")
 const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
+const TargetingPolicy = preload("res://Scripts/Gameplay/Combat/targeting_policy.gd")
 
 ## Resultado de un ataque: qué defensor ataca a qué enemigo y con cuánto
 ## daño. No es una mutación en sí, solo la intención calculada.
@@ -26,25 +30,19 @@ class Result:
 		target = p_target
 		damage = p_damage
 
-## Para cada defensor listo, ataca al enemigo vivo con mayor path_progress
-## (el más cercano a llegar al final del camino). Regla de selección mínima
-## aprobada para esta iteración: sin alcance ni posiciones todavía.
+var _targeting_policy: TargetingPolicy
+
+func _init() -> void:
+	_targeting_policy = TargetingPolicy.new()
+
+## Para cada defensor listo, ataca al objetivo que resuelva el TargetingPolicy.
 func advance(defenders: Array[Defender], enemies: Array[Enemy]) -> Array[Result]:
 	var results: Array[Result] = []
 	for defender in defenders:
 		if not defender.weapon_instance.is_ready():
 			continue
-		var target: Enemy = _select_target(enemies)
+		var target: Enemy = _targeting_policy.select_target(enemies)
 		if target == null:
 			continue
 		results.append(Result.new(defender, target, defender.weapon_instance.weapon_data.damage))
 	return results
-
-func _select_target(enemies: Array[Enemy]) -> Enemy:
-	var best: Enemy = null
-	for enemy in enemies:
-		if not enemy.is_alive():
-			continue
-		if best == null or enemy.path_progress > best.path_progress:
-			best = enemy
-	return best
