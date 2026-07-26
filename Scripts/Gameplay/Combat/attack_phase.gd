@@ -10,12 +10,14 @@ extends RefCounted
 ## por CombatSimulation antes de llamar a advance(): esta fase solo lee
 ## is_ready(), nunca tickea el cooldown.
 ##
-## La selección de objetivo no vive aquí: se delega en un TargetingPolicy
-## propio, para que AttackPhase no crezca con cada regla de selección nueva.
+## La selección de objetivo no vive aquí: cada Defender compone su propia
+## TargetingPolicy, y AttackPhase únicamente delega en
+## defender.targeting_policy.select_target(enemies). Así, una regla de
+## selección nueva (o un arquetipo que reutilice una existente) nunca
+## requiere modificar esta clase.
 
 const Enemy = preload("res://Scripts/Gameplay/Combat/enemy.gd")
 const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
-const TargetingPolicy = preload("res://Scripts/Gameplay/Combat/targeting_policy.gd")
 
 ## Resultado de un ataque: qué defensor ataca a qué enemigo y con cuánto
 ## daño. No es una mutación en sí, solo la intención calculada.
@@ -30,18 +32,14 @@ class Result:
 		target = p_target
 		damage = p_damage
 
-var _targeting_policy: TargetingPolicy
-
-func _init() -> void:
-	_targeting_policy = TargetingPolicy.new()
-
-## Para cada defensor listo, ataca al objetivo que resuelva el TargetingPolicy.
+## Para cada defensor listo, ataca al objetivo que resuelva su propia
+## TargetingPolicy compuesta.
 func advance(defenders: Array[Defender], enemies: Array[Enemy]) -> Array[Result]:
 	var results: Array[Result] = []
 	for defender in defenders:
 		if not defender.weapon_instance.is_ready():
 			continue
-		var target: Enemy = _targeting_policy.select_target(enemies)
+		var target: Enemy = defender.targeting_policy.select_target(enemies)
 		if target == null:
 			continue
 		results.append(Result.new(defender, target, defender.weapon_instance.weapon_data.damage))
