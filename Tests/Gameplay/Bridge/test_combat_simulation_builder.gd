@@ -17,8 +17,8 @@ func test_convierte_cada_pieza_colocada_mapeada_en_un_defender(t) -> void:
 	grid.place_piece(InventoryPiece.new(&"square", shape), Vector2i(0, 0))
 	grid.place_piece(InventoryPiece.new(&"bar", shape), Vector2i(1, 0))
 	var catalog := DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0))),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"archer", WeaponData.new(&"bow", 2, 0.5))),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0)), 1),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"archer", WeaponData.new(&"bow", 2, 0.5)), 1),
 	])
 
 	var simulation := CombatSimulationBuilder.new().build(grid, CombatPath.new(100.0), catalog)
@@ -48,7 +48,7 @@ func test_dos_piezas_del_mismo_type_id_producen_un_defender_cada_una(t) -> void:
 	grid.place_piece(InventoryPiece.new(&"square", shape), Vector2i(0, 0))
 	grid.place_piece(InventoryPiece.new(&"square", shape), Vector2i(1, 0))
 	var catalog := DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0))),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0)), 1),
 	])
 
 	var simulation := CombatSimulationBuilder.new().build(grid, CombatPath.new(100.0), catalog)

@@ -135,11 +135,24 @@ func _on_draft_reroll_requested() -> void:
 ## SingleShot, daño medio y cadencia rápida), corner → Artillero
 ## (HighestProgress + DoubleShot, daño menor repartido en dos impactos). A
 ## reemplazar cuando exista una fuente real de configuración de ronda.
+##
+## Cada arquetipo tiene una entrada por rank (1 a InventoryPiece.MAX_RANK):
+## fusionar una pieza (ver notas de fusión en Inventario) sube su rank y hace
+## que produzca un Defender más fuerte en la próxima batalla. Cadencia,
+## WeaponBehavior y TargetingPolicy se mantienen iguales entre ranks del
+## mismo arquetipo, solo el daño escala a mano por rank (valores de sandbox,
+## no una curva de balance final).
 func _build_sandbox_defender_catalog() -> DefenderCatalog:
 	return DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new())),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new())),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new())),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 12, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 18, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 3),
 	])
 
 ## Calendario de prueba: dos waves cortas de goblins (2 y 3 respectivamente),

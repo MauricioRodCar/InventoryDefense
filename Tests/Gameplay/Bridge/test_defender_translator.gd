@@ -13,7 +13,7 @@ const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowes
 
 func test_traduce_una_pieza_mapeada_en_un_defender(t) -> void:
 	var weapon_data := WeaponData.new(&"sword", 4, 1.0)
-	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", weapon_data))])
+	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", weapon_data), 1)])
 	var piece := InventoryPiece.new(&"square", ShapeData.new(&"2x2", [Vector2i(0, 0)]))
 
 	var defender := DefenderTranslator.new().translate(piece, catalog)
@@ -23,7 +23,7 @@ func test_traduce_una_pieza_mapeada_en_un_defender(t) -> void:
 	t.assert_eq(defender.weapon_instance.weapon_data, weapon_data, "la WeaponInstance del Defender debe usar el WeaponData del DefenderData mapeado")
 
 func test_una_pieza_sin_targeting_policy_explicita_produce_un_defender_con_el_default(t) -> void:
-	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0)))])
+	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", WeaponData.new(&"sword", 4, 1.0)), 1)])
 	var piece := InventoryPiece.new(&"square", ShapeData.new(&"2x2", [Vector2i(0, 0)]))
 
 	var defender := DefenderTranslator.new().translate(piece, catalog)
@@ -32,7 +32,7 @@ func test_una_pieza_sin_targeting_policy_explicita_produce_un_defender_con_el_de
 
 func test_conserva_la_targeting_policy_explicita_del_defender_data(t) -> void:
 	var policy := LowestHealthTargetingPolicy.new()
-	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher", WeaponData.new(&"dagger", 3, 0.5), policy))])
+	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher", WeaponData.new(&"dagger", 3, 0.5), policy), 1)])
 	var piece := InventoryPiece.new(&"bar", ShapeData.new(&"3x1", [Vector2i(0, 0)]))
 
 	var defender := DefenderTranslator.new().translate(piece, catalog)
@@ -41,7 +41,7 @@ func test_conserva_la_targeting_policy_explicita_del_defender_data(t) -> void:
 
 func test_dos_piezas_del_mismo_tipo_no_comparten_weapon_instance(t) -> void:
 	var weapon_data := WeaponData.new(&"sword", 4, 1.0)
-	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", weapon_data))])
+	var catalog := DefenderCatalog.new([DefenderCatalog.Entry.new(&"square", DefenderData.new(&"knight", weapon_data), 1)])
 	var translator := DefenderTranslator.new()
 	var piece_a := InventoryPiece.new(&"square", ShapeData.new(&"2x2", [Vector2i(0, 0)]))
 	var piece_b := InventoryPiece.new(&"square", ShapeData.new(&"2x2", [Vector2i(0, 0)]))
@@ -58,3 +58,17 @@ func test_una_pieza_sin_mapeo_devuelve_null(t) -> void:
 	var defender := DefenderTranslator.new().translate(piece, catalog)
 
 	t.assert_true(defender == null, "una pieza sin DefenderData asociado no debe producir un Defender")
+
+func test_una_pieza_de_rank_2_usa_la_entrada_de_rank_2_del_catalogo(t) -> void:
+	var rank_1_data := DefenderData.new(&"knight_rank_1", WeaponData.new(&"sword", 4, 1.0))
+	var rank_2_data := DefenderData.new(&"knight_rank_2", WeaponData.new(&"sword", 6, 1.0))
+	var catalog := DefenderCatalog.new([
+		DefenderCatalog.Entry.new(&"square", rank_1_data, 1),
+		DefenderCatalog.Entry.new(&"square", rank_2_data, 2),
+	])
+	var piece := InventoryPiece.new(&"square", ShapeData.new(&"2x2", [Vector2i(0, 0)]))
+	piece.rank = 2
+
+	var defender := DefenderTranslator.new().translate(piece, catalog)
+
+	t.assert_eq(defender.id, &"knight_rank_2", "una pieza de rank 2 debe traducirse con la entrada de rank 2, no la de rank 1")
