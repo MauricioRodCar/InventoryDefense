@@ -1,5 +1,21 @@
 # Spec: golpes críticos
 
+**Estado: completo.** Mergeado a `main`. Todo defensor puede tener crítico
+hoy (`crit_chance`/`crit_multiplier` viven en `WeaponData`, y los tres
+arquetipos de sandbox lo tienen configurado por igual).
+
+**Nota para una iteración futura** (no implementar todavía, decisión
+pendiente del usuario): actualmente cualquier arma puede tener crítico si su
+`WeaponData` lo configura — no hay ninguna restricción de diseño que lo
+limite a un arquetipo en particular. El usuario planteó que preferiría que
+el crítico fuera un rasgo distintivo de *ciertas* unidades (p. ej. un
+arquetipo "Francotirador" con alto `crit_chance` y el resto en 0), no una
+propiedad genérica que todos los arquetipos de sandbox comparten por igual
+como hoy. Esto no requeriría ningún cambio de arquitectura — ya es posible
+hoy mismo ajustando los valores por arquetipo en `main.gd` — es una decisión
+de contenido/balance, no de diseño. Retomar cuando el usuario defina qué
+arquetipos deberían tener crítico y cuáles no.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como
