@@ -28,3 +28,11 @@ func test_clear_placement_libera_la_pieza(t) -> void:
 	piece._clear_placement()
 	t.assert_true(not piece.is_placed(), "tras _clear_placement la pieza no debe estar colocada")
 	t.assert_eq(piece.get_occupied_cells(), [], "una pieza liberada no ocupa celdas")
+
+func test_dos_piezas_del_mismo_tipo_comparten_type_id_pero_no_id(t) -> void:
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var piece_a := InventoryPiece.new(&"square", shape)
+	var piece_b := InventoryPiece.new(&"square", shape)
+	t.assert_eq(piece_a.type_id, &"square", "type_id debe reflejar el tipo pasado al constructor")
+	t.assert_eq(piece_b.type_id, &"square", "dos piezas del mismo tipo deben compartir type_id")
+	t.assert_true(piece_a.id != piece_b.id, "dos instancias distintas deben tener id distinto aunque compartan type_id")
