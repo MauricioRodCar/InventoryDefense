@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://dmmvrg6midvd5"]
+[gd_scene load_steps=9 format=3 uid="uid://dmmvrg6midvd5"]
 
 [ext_resource type="Script" path="res://Scripts/Main/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryGridView.tscn" id="2"]
@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" path="res://scenes/UI/Inventory/InventoryPieceSourceView.tscn" id="4"]
 [ext_resource type="Script" path="res://Scripts/Gameplay/Battle/battle_runner.gd" id="5"]
 [ext_resource type="Script" path="res://Scripts/UI/Battle/battle_view.gd" id="6"]
+[ext_resource type="Script" path="res://Scripts/UI/Economy/gold_counter_view.gd" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/UI/Draft/DraftView.tscn" id="8"]
 
 [node name="Node2D" type="Node2D" unique_id=426169063]
 script = ExtResource("1")
@@ -33,3 +35,14 @@ path_start = Vector2(0, 0)
 path_end = Vector2(400, 0)
 defender_row_position = Vector2(0, 80)
 defender_spacing = 32.0
+
+[node name="GoldCounterView" type="Label" parent="."]
+offset_left = 600.0
+offset_top = 20.0
+offset_right = 760.0
+offset_bottom = 44.0
+text = "Oro: 0"
+script = ExtResource("7")
+
+[node name="DraftView" parent="." instance=ExtResource("8")]
+position = Vector2(600, 420)

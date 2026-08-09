@@ -210,7 +210,8 @@ Incluye:
 ### Draft
 
 Estado:
-✅ Dominio `Draft` implementado: sortea 3 opciones (pieza o expansión de grid) mediante ruleta ponderada, aplica la elegida y permite pagar oro para rerollear el conjunto. 100% headless, sin ningún botón ni pantalla todavía.
+✅ Dominio `Draft` implementado: sortea 3 opciones (pieza o expansión de grid) mediante ruleta ponderada, aplica la elegida y permite pagar oro para rerollear el conjunto.
+✅ `DraftView`/`GoldCounterView` cablean el dominio a una interfaz real, y `main.gd` gana un loop mínimo de waves de sandbox para que el draft tenga una "siguiente wave" a la que llevar al jugador.
 
 Incluye:
 
@@ -219,7 +220,9 @@ Incluye:
 - `GridExpansionDraftOption` (`DraftOption`; llama `InventoryGrid.expand()` al aplicarse)
 - `DraftPool` (dominio; definición pura de qué opciones puede ofrecer un draft y con qué peso relativo cada una, sin estado de ejecución — mismo rol que `WaveData`/`DefenderCatalog`)
 - `Draft` (dominio; instancia en ejecución de un draft concreto — única autoridad y único emisor de señales de este dominio, mismo rol que `InventoryGrid`/`CombatSimulation` en los suyos)
-- Tests headless
+- `GoldCounterView` (`Scripts/UI/Economy/`; `Label` reactivo al oro de `PlayerEconomy`, sin `.tscn` propio por ser un único nodo trivial — mismo criterio que `EnemyView`/`DefenderView`)
+- `DraftView` (`Scripts/UI/Draft/` + `scenes/UI/Draft/DraftView.tscn`; representación visual mínima de un `Draft`, reactiva a sus señales)
+- Tests headless (dominio; `DraftView`/`GoldCounterView` no llevan tests headless, mismo criterio que el resto de la capa `UI/`)
 
 #### Notas de diseño — Draft
 
@@ -232,14 +235,17 @@ Incluye:
 - `Draft.reroll(player_economy)` no muta las opciones actuales ni emite ninguna señal si `player_economy.spend_gold()` falla por falta de oro: quedarse sin oro suficiente es un resultado esperado del flujo normal del juego, no amerita ningún efecto sobre el draft en curso.
 - `Draft.choose(index, ...)` no valida que `index` esté en rango: quien llama (la UI, todavía sin construir) es responsable de no invocarlo con un índice inválido, mismo espíritu que `PlayerEconomy.add_gold`/`spend_gold` delegan la validación de precondiciones a quien llama.
 - El oro que se gasta en el reroll sigue siendo exclusivamente la moneda de escenario (`PlayerEconomy`), no una futura moneda de mejora permanente de overworld — esa segunda moneda no existe todavía y no se anticipó código para ella.
+- `GoldCounterView.set_player_economy()` pinta el texto inicial llamando explícitamente a `economy.get_gold()`, en vez de depender de que se emita `gold_changed` durante la construcción de `PlayerEconomy` (que nadie podría escuchar todavía) — mismo motivo que `InventoryGridView.set_inventory_grid()` llama `_render_all()` en vez de esperar una señal.
+- `DraftView` no conoce `InventoryGrid` ni `InventoryPieceSource`, y no llama ningún método que mute el dominio directamente: solo emite intención (`option_selected(index)`/`reroll_requested()`), es `main.gd` quien decide qué hacer con esa intención — mismo criterio que `InventoryGridView`/`InventoryPieceSourceView` nunca mutan el dominio directamente, solo `InventoryInteractionController` lo hace. No se justifica una clase controller aparte solo para esto (a diferencia del drag de inventario): acá es un puñado de conexiones triviales de un botón a un método.
+- `DraftView.set_draft()` sigue el mismo patrón `_disconnect_...`/pintado explícito que el resto de las vistas (`InventoryGridView`, `BattleView`): se desconecta de cualquier `draft`/`player_economy` previos, se conecta a `options_changed`/`option_chosen`/`gold_changed`, y pinta el estado inicial explícitamente en vez de depender de una señal emitida durante la construcción de `draft`. Al recibir `option_chosen` se oculta y se desconecta del `draft`/`player_economy` actuales — un draft resuelto no debe seguir reaccionando a cambios de oro ajenos a él.
+- `main.gd` construye un `DraftPool` de sandbox (`_build_sandbox_draft_pool()`) con los mismos 3 tipos de pieza que ya ofrece `InventoryPieceSourceSandbox` a peso `5.0` cada uno, más dos `GridExpansionDraftOption` a peso `1.0` cada una — proporción ~5:1 piezas:expansión, la "probabilidad menor" de expansión definida en el objetivo de producto. Mismo espíritu que el resto de la configuración de sandbox de `main.gd`: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
+- `main.gd` reemplazó su única `WaveData` de sandbox por un `_wave_schedule: Array[WaveData]` corto (dos waves) y un `_current_wave_index`, porque el draft necesita una "siguiente wave" real a la que llevar al jugador. `BattleRunner.start()` no tenía ningún guard de estado propio, así que todo el loop (arrancar la wave actual, detectar `FINISHED`, armar un `Draft` nuevo, y volver a habilitar el disparador de Enter recién cuando el jugador elige una opción) vive enteramente en `main.gd` vía el nuevo campo `_ready_for_next_wave`, sin tocar `BattleRunner` ni `CombatSimulation`. Deliberadamente no es un `RunController` ni progresión persistente — sigue fuera de alcance (ver "Próximo objetivo").
 
 ### Próximo objetivo
 
-Cablear el dominio `Draft` (ver más arriba) a una interfaz real y a `main.gd`: ya resuelve headless el sorteo, la elección y el reroll de recompensas de fin de wave, pero todavía no hay ningún botón, pantalla ni disparador que lo conecte al loop de juego.
+Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada más elaboradas, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
 
-Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
-
-Reemplazar el disparador temporal de "Start Battle" (Enter/Espacio) por una UI real, y el `DefenderCatalog`/`WaveData` de sandbox de `main.gd` por una configuración real de ronda.
+Reemplazar el disparador temporal de "Start Battle" (Enter/Espacio) por una UI real, y el `DefenderCatalog`/`_wave_schedule`/`_draft_pool` de sandbox de `main.gd` por una configuración real de ronda.
 
 Resolver, en una branch de Bridge, que un `DefenderView` se posicione según el `anchor` original de su `InventoryPiece` en vez de en una fila por índice.
 
