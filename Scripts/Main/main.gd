@@ -16,7 +16,7 @@ const ShapeData = preload("res://Scripts/Gameplay/Inventory/shape_data.gd")
 const CombatPath = preload("res://Scripts/Gameplay/Combat/combat_path.gd")
 const WeaponData = preload("res://Scripts/Gameplay/Combat/weapon_data.gd")
 const SingleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/single_shot_weapon_behavior.gd")
-const DoubleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/double_shot_weapon_behavior.gd")
+const AreaWeaponBehavior = preload("res://Scripts/Gameplay/Combat/area_weapon_behavior.gd")
 const HighestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/highest_progress_targeting_policy.gd")
 const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_health_targeting_policy.gd")
 const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
@@ -133,8 +133,9 @@ func _on_draft_reroll_requested() -> void:
 ## Defender ni DefenderData): square → Vanguardia (HighestProgress +
 ## SingleShot, daño alto y cadencia lenta), bar → Rematador (LowestHealth +
 ## SingleShot, daño medio y cadencia rápida), corner → Artillero
-## (HighestProgress + DoubleShot, daño menor repartido en dos impactos). A
-## reemplazar cuando exista una fuente real de configuración de ronda.
+## (HighestProgress + Area, mismo daño base por impacto repartido entre
+## todos los enemigos cercanos al objetivo prioritario). A reemplazar cuando
+## exista una fuente real de configuración de ronda.
 ##
 ## Cada arquetipo tiene una entrada por rank (1 a InventoryPiece.MAX_RANK):
 ## fusionar una pieza (ver notas de fusión en Inventario) sube su rank y hace
@@ -150,9 +151,9 @@ func _build_sandbox_defender_catalog() -> DefenderCatalog:
 		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 1),
 		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 2),
 		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 3),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),
 	])
 
 ## Calendario de prueba: dos waves cortas de goblins (2 y 3 respectivamente),
