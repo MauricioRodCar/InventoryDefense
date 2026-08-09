@@ -100,26 +100,50 @@ func _update_drag() -> void:
 
 ## Recalcula la celda ancla candidata bajo el cursor y, solo si cambió
 ## respecto a la última evaluada, vuelve a consultar
-## InventoryGrid.can_place() y empuja el nuevo estado al preview. Evita
-## invocar can_place() en cada píxel de movimiento del ratón: el número de
-## consultas queda acotado a las celdas distintas que el cursor cruza.
+## InventoryGrid.can_place()/_find_merge_target y empuja el nuevo estado al
+## preview. Evita invocar esas consultas en cada píxel de movimiento del
+## ratón: el número de consultas queda acotado a las celdas distintas que el
+## cursor cruza.
 func _update_placement_preview(local_pos: Vector2) -> void:
 	var cursor_cell: Vector2i = grid_view.position_to_cell(local_pos)
 	var candidate_anchor: Vector2i = cursor_cell - _drag_grab_cell_offset
 	if candidate_anchor == _last_preview_anchor:
 		return
 	_last_preview_anchor = candidate_anchor
-	var state: InventoryPlacementPreviewView.State = InventoryPlacementPreviewView.State.VALID \
-		if _grid.can_place(_dragged_piece, candidate_anchor) \
-		else InventoryPlacementPreviewView.State.INVALID
+	var state: InventoryPlacementPreviewView.State
+	if _find_merge_target(_dragged_piece, candidate_anchor) != null:
+		state = InventoryPlacementPreviewView.State.MERGE
+	elif _grid.can_place(_dragged_piece, candidate_anchor):
+		state = InventoryPlacementPreviewView.State.VALID
+	else:
+		state = InventoryPlacementPreviewView.State.INVALID
 	_preview.show_at(grid_view.cell_to_position(candidate_anchor), state)
+
+## Devuelve la pieza colocada sobre la que piece se fusionaría si se soltara
+## en candidate_anchor, o null si no aplica. Exige que la pieza ocupante
+## tenga exactamente la misma ancla candidata (no solo que esté presente en
+## esa celda): como dos piezas del mismo type_id comparten siempre el mismo
+## ShapeData, anclas iguales implican huellas de celdas idénticas, es decir
+## un solapamiento total. Sin esta condición, rozar apenas una esquina de
+## otra pieza con una forma irregular dispararía una fusión que no coincide
+## visualmente.
+func _find_merge_target(piece: InventoryPiece, candidate_anchor: Vector2i) -> InventoryPiece:
+	var target := _grid.get_piece_at(candidate_anchor)
+	if target == null or target.anchor != candidate_anchor:
+		return null
+	if not _grid.can_merge(piece, target):
+		return null
+	return target
 
 func _end_drag() -> void:
 	var piece: InventoryPiece = _dragged_piece
 	var local_pos: Vector2 = grid_view.get_local_mouse_position()
 	var cursor_cell: Vector2i = grid_view.position_to_cell(local_pos)
 	var target_anchor: Vector2i = cursor_cell - _drag_grab_cell_offset
-	if _grid.can_place(piece, target_anchor):
+	var merge_target: InventoryPiece = _find_merge_target(piece, target_anchor)
+	if merge_target != null:
+		_grid.merge_pieces(piece, merge_target)
+	elif _grid.can_place(piece, target_anchor):
 		_settle_piece_at(piece, target_anchor)
 	elif _drag_from_source:
 		_piece_source.return_piece(piece)

@@ -8,14 +8,15 @@ extends Node2D
 
 const ShapeData = preload("res://Scripts/Gameplay/Inventory/shape_data.gd")
 
-## Estado general del preview. Aunque hoy solo se usan dos valores, la API
-## se expresa como enum (no bool) para poder añadir más estados en el
-## futuro sin romper el contrato público de esta clase.
-enum State { VALID, INVALID }
+## Estado general del preview. Se expresa como enum (no bool) para poder
+## añadir más estados en el futuro sin romper el contrato público de esta
+## clase — MERGE es el primer caso concreto de esa extensión.
+enum State { VALID, INVALID, MERGE }
 
 const COLOR_BY_STATE := {
 	State.VALID: Color(0.3, 1.0, 0.3, 0.45),
 	State.INVALID: Color(1.0, 0.3, 0.3, 0.45),
+	State.MERGE: Color(0.85, 0.65, 0.1, 0.45),
 }
 
 var _shape: ShapeData
