@@ -2,25 +2,45 @@ class_name InventoryGrid
 extends RefCounted
 ## Contenedor acotado de InventoryPiece. Única fuente de verdad sobre qué
 ## celda está ocupada por qué pieza, y único emisor de señales del dominio
-## de inventario.
+## de inventario. Los límites (_width/_height) solo pueden crecer, nunca
+## encoger, vía expand() — mantiene un único camino de mutación con señal,
+## igual que place_piece/remove_piece sobre _cells/_pieces.
 
 const InventoryPiece = preload("res://Scripts/Gameplay/Inventory/inventory_piece.gd")
 
 signal piece_placed(piece: InventoryPiece, anchor: Vector2i)
 signal piece_removed(piece: InventoryPiece)
+signal grid_expanded(new_width: int, new_height: int)
 
-var width: int
-var height: int
+var _width: int
+var _height: int
 
 var _cells: Dictionary = {} # Vector2i -> InventoryPiece
 var _pieces: Dictionary = {} # StringName -> InventoryPiece
 
 func _init(p_width: int, p_height: int) -> void:
-	width = p_width
-	height = p_height
+	_width = p_width
+	_height = p_height
+
+func get_width() -> int:
+	return _width
+
+func get_height() -> int:
+	return _height
+
+## Agranda el grid en runtime. Solo crece, nunca encoge: reducir un grid con
+## piezas ya colocadas plantearía qué hacer con las piezas que quedan fuera
+## de los nuevos límites, un problema que ningún consumidor actual necesita
+## resolver.
+func expand(additional_width: int, additional_height: int) -> void:
+	assert(additional_width >= 0 and additional_height >= 0)
+	assert(additional_width > 0 or additional_height > 0)
+	_width += additional_width
+	_height += additional_height
+	grid_expanded.emit(_width, _height)
 
 func is_within_bounds(cell: Vector2i) -> bool:
-	return cell.x >= 0 and cell.y >= 0 and cell.x < width and cell.y < height
+	return cell.x >= 0 and cell.y >= 0 and cell.x < _width and cell.y < _height
 
 ## True si la pieza cabría en anchor: dentro de límites y sin solapar piezas ya colocadas.
 func can_place(piece: InventoryPiece, anchor: Vector2i) -> bool:

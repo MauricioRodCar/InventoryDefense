@@ -78,3 +78,28 @@ func test_dos_piezas_del_mismo_type_id_no_se_pisan(t) -> void:
 	grid.place_piece(piece_b, Vector2i(1, 0))
 
 	t.assert_eq(grid.get_pieces().size(), 2, "dos piezas del mismo type_id colocadas en celdas distintas no deben pisarse en _pieces")
+
+func test_expand_agranda_los_limites(t) -> void:
+	var grid := InventoryGrid.new(2, 2)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var piece := InventoryPiece.new(&"p1", shape)
+
+	t.assert_true(not grid.can_place(piece, Vector2i(2, 0)), "la celda (2, 0) no debe existir todavía en un grid de 2x2")
+
+	grid.expand(2, 0)
+
+	t.assert_eq(grid.get_width(), 4, "expand debe agrandar el ancho")
+	t.assert_eq(grid.get_height(), 2, "expand no debe modificar el alto si additional_height es 0")
+	t.assert_true(grid.can_place(piece, Vector2i(2, 0)), "la celda (2, 0) debe estar disponible tras expandir el ancho")
+	t.assert_true(grid.place_piece(piece, Vector2i(2, 0)), "debe poder colocarse una pieza en la columna nueva")
+
+func test_expand_emite_grid_expanded_una_vez(t) -> void:
+	var grid := InventoryGrid.new(2, 2)
+	var expanded_events: Array = []
+	grid.grid_expanded.connect(func(new_width, new_height): expanded_events.append([new_width, new_height]))
+
+	grid.expand(1, 3)
+
+	t.assert_eq(expanded_events.size(), 1, "grid_expanded debe emitirse exactamente una vez")
+	t.assert_eq(expanded_events[0][0], 3, "grid_expanded debe reportar el nuevo ancho")
+	t.assert_eq(expanded_events[0][1], 5, "grid_expanded debe reportar el nuevo alto")
