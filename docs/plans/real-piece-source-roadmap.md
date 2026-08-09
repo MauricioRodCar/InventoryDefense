@@ -1,5 +1,14 @@
 # Roadmap: fuente real de piezas (draft de fin de wave)
 
+**Estado: completo.** Las 5 branches (1, 2, 3, 4a, 4b) están mergeadas a
+`main`. El jugador puede jugar de punta a punta: colocar piezas, pelear una
+wave, ganar oro por cada enemigo derrotado, elegir una de 3 recompensas al
+terminar (pieza nueva o expansión de grid, con reroll pago), y continuar a la
+siguiente wave del schedule de sandbox. Pendiente de verificación visual/UX
+propia (forma en que aparecen las piezas nuevas, legibilidad del panel) — ver
+"Próximo objetivo" en `README.md`. Este documento queda como referencia
+histórica de cómo se diseñó y secuenció el trabajo.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como **arquitecto** del
