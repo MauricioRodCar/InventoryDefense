@@ -45,11 +45,15 @@ solo las **compone** llamando a APIs públicas ya existentes — mismo patrón q
 Las branches 1, 2 y 3 son independientes entre sí y se pueden hacer en cualquier
 orden. Solo la branch 4 depende de que las tres anteriores estén mergeadas.
 
-Este documento especifica **la branch 1 en detalle, lista para implementar**. Las
-branches 2-4 quedan como roadmap de alto nivel: se especificarán en detalle
-cuando les toque el turno, para no fijar decisiones de diseño antes de tiempo
-(evitar optimización prematura sobre un diseño que puede ajustarse con lo que se
-aprenda en el camino).
+Las branches 1, 2 y 3 están **completamente especificadas y listas para
+implementar**, cada una de forma independiente y autocontenida — cada spec
+incluye todo lo que hace falta saber sobre su propio dominio sin depender de que
+quien la implemente conozca el estado de las otras branches. Están pensadas para
+que cada una la ejecute una instancia distinta sin contexto compartido entre
+ellas (ni siquiera necesitan saber que las otras branches existen), en paralelo
+si hace falta. La branch 4 queda como roadmap de alto nivel a propósito: depende
+de que 1, 2 y 3 estén mergeadas, y se especificará en detalle recién cuando le
+toque el turno, para no fijar decisiones de diseño antes de tiempo.
 
 ---
 
@@ -177,20 +181,187 @@ la firma del constructor.
 
 ---
 
-## Branch 2 — `feature/inventory-grid-expansion` (roadmap, sin detallar aún)
+## Branch 2 — `feature/inventory-grid-expansion` (lista para implementar)
 
-`InventoryGrid` necesita una forma de crecer en runtime (agregar celdas a su
-`width`/`height` o a un conjunto de celdas habilitadas, según se decida cuando
-se detalle esta branch). Debe quedar como una capacidad pública y testeada de
-`InventoryGrid`, sin ningún consumidor todavía — la branch 4 la va a llamar, no
-la va a construir.
+### Problema
 
-## Branch 3 — `feature/player-economy-spending` (roadmap, sin detallar aún)
+`InventoryGrid` tiene límites fijos (`width`/`height`) establecidos una única vez
+en el constructor, sin ninguna forma de crecer en runtime. El draft de fin de
+wave (branch 4) necesita poder ofrecer "más espacio de grid" como una de sus
+recompensas — hoy no existe ningún mecanismo para eso.
 
-`PlayerEconomy` gana la posibilidad de gastar oro (p. ej. `spend_gold(amount)` /
-`can_afford(amount)`), protegiendo el invariante de que el oro nunca queda
-negativo — mismo espíritu que ya protege `add_gold`. Es la moneda de escenario,
-no la moneda de mejora permanente (ver nota en Contexto).
+### Diseño
+
+El grid sigue siendo rectangular — no se introducen celdas irregulares ni
+bloqueadas. El modelo actual ya es un rectángulo simple; no hay ninguna
+necesidad concreta todavía de formas irregulares, y agregarla ahora sería
+optimizar para un requisito que no existe (regla del proyecto: no hacer
+optimizaciones prematuras).
+
+- Nuevo método `expand(additional_width: int, additional_height: int) -> void`:
+  agranda `width` y/o `height` en runtime. Solo crece, nunca encoge — reducir un
+  grid con piezas ya colocadas plantea qué hacer con las piezas que quedarían
+  fuera de los nuevos límites, un problema que el draft no necesita resolver
+  (solo otorga espacio, nunca lo quita). `assert(additional_width >= 0 and
+  additional_height >= 0)` y `assert(additional_width > 0 or additional_height >
+  0)` (debe agrandar al menos una dimensión) — mismo estilo de guarda que
+  `PlayerEconomy.add_gold` (falla con `assert`, no hay rama de error silenciosa).
+- Nueva señal `grid_expanded(new_width: int, new_height: int)`, emitida después
+  de aplicar el cambio — mismo patrón que `piece_placed`/`piece_removed`.
+- `width`/`height` dejan de ser `var` públicas mutables libremente: pasan a ser
+  privadas (`_width`/`_height`) con `get_width() -> int`/`get_height() -> int`.
+  Esto no es un cleanup aparte: es consecuencia directa de esta feature — si
+  cualquiera pudiera seguir escribiendo `grid.width = X` desde afuera, el modelo
+  de "único camino de mutación + señal" que `expand()` establece quedaría roto
+  (alguien podría cambiar el tamaño sin que nadie se entere). Es el mismo
+  criterio de protección que ya aplican `_cells`/`_pieces` en esta misma clase.
+- `is_within_bounds()` pasa a usar `_width`/`_height` en vez de `width`/`height`
+  — comportamiento idéntico, solo cambia el nombre del campo interno. `can_place`
+  no cambia (ya delega en `is_within_bounds`).
+
+### Cambios exactos por archivo
+
+**`Scripts/Gameplay/Inventory/inventory_grid.gd`**
+- Renombrar `var width: int` / `var height: int` (públicas) a `_width`/`_height`
+  (privadas). El constructor sigue recibiendo `p_width`/`p_height` igual que hoy.
+- Agregar `get_width() -> int` y `get_height() -> int`.
+- Agregar `signal grid_expanded(new_width: int, new_height: int)`.
+- Agregar método `expand(additional_width: int, additional_height: int) -> void`
+  con los asserts descritos arriba; aplica `_width += additional_width`,
+  `_height += additional_height`, luego `grid_expanded.emit(_width, _height)`.
+- Actualizar `is_within_bounds()` para usar `_width`/`_height`.
+- Actualizar el comentario de clase explicando la nueva capacidad de expansión.
+
+**`Scripts/UI/Inventory/inventory_grid_view.gd`**
+- En `set_inventory_grid()`: cambiar los dos usos de `_grid.width`/`_grid.height`
+  por `_grid.get_width()`/`_grid.get_height()`.
+- Conectar `_grid.grid_expanded` a un nuevo handler privado
+  `_on_grid_expanded(new_width, new_height)` que vuelve a llamar
+  `_background.setup(new_width, new_height, cell_size)` y actualiza
+  `custom_minimum_size = Vector2(new_width * cell_size, new_height * cell_size)`.
+  Sin esto, expandir el grid en el dominio dejaría la vista desincronizada (el
+  fondo y el tamaño del control no crecerían) — misma categoría de ajuste
+  mecánico que ya se hizo en la branch 1 para no dejar una regresión visual.
+- En `_disconnect_grid()`: desconectar también `grid_expanded`, mismo patrón que
+  ya existe para `piece_placed`/`piece_removed`.
+
+### Call sites verificados que NO requieren cambios
+
+Confirmado por búsqueda en todo el repo: el único consumidor externo de
+`grid.width`/`grid.height` es `InventoryGridView` (los dos usos ya listados).
+Ningún test lee `grid.width`/`grid.height` directamente. `InventoryGridBackground`
+recibe `width`/`height` como parámetros simples de `setup()`, no como referencia
+al grid — no necesita cambios.
+
+### Tests nuevos a agregar
+
+1. **`Tests/Gameplay/Inventory/test_inventory_grid.gd`**:
+   - `expand` agranda los límites: grid de 2x2, `expand(2, 0)` →
+     `get_width() == 4`, `get_height() == 2`, y una pieza que antes no entraba
+     en la columna nueva ahora sí puede colocarse ahí (`can_place`/`place_piece`
+     en una celda que antes estaba fuera de límites).
+   - `expand` emite `grid_expanded` exactamente una vez con los nuevos
+     `width`/`height`.
+
+### Documentación a actualizar
+
+- `README.md`: agregar una nota de diseño nueva en la sección Inventario (mismo
+  estilo que el resto: explica el porqué, no solo el qué) describiendo
+  `expand()`/`grid_expanded` y por qué `width`/`height` pasaron a ser privadas
+  con getters.
+- `TODO.md`: no tiene un ítem específico de expansión de grid; no requiere
+  cambios.
+
+### Definición de hecho
+
+- Todos los tests existentes siguen pasando sin modificarse (excepto
+  `test_inventory_grid.gd`, donde se agregan los casos nuevos).
+- Los tests nuevos de esta branch pasan.
+- `README.md` actualizado.
+- Commit único (esta branch modifica un solo sistema: Inventory, con un ajuste
+  mecánico en `InventoryGridView` que es consecuencia directa de mantener la
+  vista reactiva, no una modificación de UI por sí misma).
+
+---
+
+## Branch 3 — `feature/player-economy-spending` (lista para implementar)
+
+### Problema
+
+`PlayerEconomy` (`Scripts/Gameplay/Economy/player_economy.gd`) hoy solo permite
+acumular oro (`add_gold`). No existe ninguna forma de gastarlo. El draft de fin
+de wave (branch 4) necesita poder cobrar oro por el reroll de sus 3 opciones.
+
+### Diseño
+
+- Nuevo método `spend_gold(amount: int) -> bool`: intenta descontar `amount` del
+  oro actual. `assert(amount > 0)` — mismo estilo de guarda que ya usa
+  `add_gold` (gastar 0 o un monto negativo no tiene sentido, es responsabilidad
+  de quien llama no invocarlo así). Si `amount` es mayor al oro disponible,
+  **no** falla con assert: devuelve `false` sin mutar nada ni emitir señal
+  (quedarse sin oro suficiente es un caso esperado en el flujo normal del juego
+  — el jugador simplemente no puede pagar el reroll —, no un error de
+  programación). Si alcanza, descuenta, emite `gold_changed(new_amount)` (misma
+  señal que ya usa `add_gold`, no una señal nueva — sigue siendo "el oro
+  cambió") y devuelve `true`.
+- Nuevo método `can_afford(amount: int) -> bool`: predicado puro,
+  `amount <= get_gold()`, sin mutar nada. Permite a un consumidor futuro (branch
+  4) decidir si mostrar la opción de reroll como disponible sin tener que
+  intentar gastarlo primero.
+- Esta moneda sigue siendo exclusivamente la de escenario. No confundir con la
+  moneda de mejora permanente del overworld (ver nota en Contexto) — no agregar
+  nada relacionado a esa segunda moneda en esta branch.
+
+### Cambios exactos por archivo
+
+**`Scripts/Gameplay/Economy/player_economy.gd`**
+- Agregar `func can_afford(amount: int) -> bool: return amount <= _gold`.
+- Agregar `func spend_gold(amount: int) -> bool` con el comportamiento descrito
+  arriba (`assert(amount > 0)`, `false` sin mutar si no alcanza, descuenta +
+  emite `gold_changed` + `true` si alcanza).
+- Actualizar el comentario de clase: hoy dice "única autoridad sobre el oro del
+  jugador" sin mencionar gasto — ampliar para reflejar que también gestiona el
+  gasto, protegiendo que el oro nunca sea negativo tanto al sumar como al
+  restar.
+
+### Call sites verificados que NO requieren cambios
+
+Confirmado por búsqueda en todo el repo: el único consumidor de `PlayerEconomy`
+hoy es `BattleRunner` (`Scripts/Gameplay/Battle/battle_runner.gd`), y solo llama
+`add_gold`. No hay ningún otro archivo que necesite actualizarse — esta branch
+es puramente aditiva, sin ningún consumidor de `spend_gold`/`can_afford` todavía
+(ese es el trabajo de la branch 4).
+
+### Tests nuevos a agregar
+
+**`Tests/Gameplay/Economy/test_player_economy.gd`**:
+1. `spend_gold` descuenta el oro cuando alcanza (p. ej. 10 de oro,
+   `spend_gold(4)` → devuelve `true`, `get_gold() == 6`).
+2. `spend_gold` falla sin mutar cuando no alcanza (p. ej. 5 de oro,
+   `spend_gold(10)` → devuelve `false`, `get_gold()` sigue siendo 5).
+3. `spend_gold` emite `gold_changed` solo cuando tiene éxito (conectar la señal,
+   hacer un gasto exitoso y uno fallido, verificar que solo se registró un
+   evento).
+4. `can_afford` refleja el oro disponible (con 10 de oro: `can_afford(10) ==
+   true`, `can_afford(11) == false`).
+
+### Documentación a actualizar
+
+- `README.md`: en la sección "Notas de diseño — Economía", la primera nota dice
+  explícitamente que "`PlayerEconomy` no expone ninguna forma de gastar oro
+  todavía" — esa frase queda obsoleta. Actualizarla para describir
+  `spend_gold`/`can_afford` con el mismo estilo (por qué no falla con assert
+  cuando no alcanza, por qué reusa `gold_changed` en vez de una señal nueva).
+- `TODO.md`: no tiene un ítem específico de gasto de oro; no requiere cambios.
+
+### Definición de hecho
+
+- Todos los tests existentes siguen pasando sin modificarse (excepto
+  `test_player_economy.gd`, donde se agregan los casos nuevos).
+- Los tests nuevos de esta branch pasan.
+- `README.md` actualizado.
+- Commit único (esta branch modifica un solo sistema: Economy, sin ningún
+  consumidor nuevo wireado).
 
 ## Branch 4 — `feature/end-of-wave-draft` (roadmap, sin detallar aún)
 
