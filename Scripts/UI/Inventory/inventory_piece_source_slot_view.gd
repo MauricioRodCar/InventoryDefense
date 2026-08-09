@@ -19,7 +19,7 @@ func setup(piece: InventoryPiece, cell_size: int) -> void:
 func _draw() -> void:
 	if _piece == null:
 		return
-	var color := _color_for_id(_piece.id)
+	var color := _color_for_id(_piece.type_id)
 	for cell in _piece.shape.get_cells():
 		var rect := Rect2(Vector2(cell) * _cell_size, Vector2.ONE * _cell_size)
 		draw_rect(rect, color, true)

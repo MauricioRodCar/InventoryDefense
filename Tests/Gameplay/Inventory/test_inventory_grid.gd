@@ -67,3 +67,14 @@ func test_no_se_puede_colocar_una_pieza_ya_colocada(t) -> void:
 func test_get_piece_at_celda_vacia_retorna_null(t) -> void:
 	var grid := InventoryGrid.new(2, 2)
 	t.assert_true(grid.get_piece_at(Vector2i(0, 0)) == null, "una celda vacía debe devolver null")
+
+func test_dos_piezas_del_mismo_type_id_no_se_pisan(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var piece_a := InventoryPiece.new(&"square", shape)
+	var piece_b := InventoryPiece.new(&"square", shape)
+
+	grid.place_piece(piece_a, Vector2i(0, 0))
+	grid.place_piece(piece_b, Vector2i(1, 0))
+
+	t.assert_eq(grid.get_pieces().size(), 2, "dos piezas del mismo type_id colocadas en celdas distintas no deben pisarse en _pieces")

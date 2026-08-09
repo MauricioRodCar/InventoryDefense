@@ -7,10 +7,7 @@ extends RefCounted
 ## MovementPhase/AttackPhase: recibe datos, devuelve un resultado, no muta
 ## nada fuera de lo que crea.
 ##
-## Usa piece.id como clave de tipo en el catálogo. InventoryPiece.id mezcla
-## hoy identidad de instancia e identidad de tipo (deuda técnica documentada
-## en el README); esta clase asume temporalmente que cada tipo de pieza
-## ofrecida es único por id, igual que InventoryPieceSourceSandbox.
+## Usa piece.type_id como clave de tipo en el catálogo.
 
 const InventoryPiece = preload("res://Scripts/Gameplay/Inventory/inventory_piece.gd")
 const DefenderCatalog = preload("res://Scripts/Gameplay/Bridge/defender_catalog.gd")
@@ -18,9 +15,9 @@ const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
 const WeaponInstance = preload("res://Scripts/Gameplay/Combat/weapon_instance.gd")
 
 ## Devuelve un Defender nuevo con su propia WeaponInstance, o null si
-## piece.id no tiene ningún DefenderData asociado en el catálogo.
+## piece.type_id no tiene ningún DefenderData asociado en el catálogo.
 func translate(piece: InventoryPiece, catalog: DefenderCatalog) -> Defender:
-	var defender_data := catalog.get_defender_data(piece.id)
+	var defender_data := catalog.get_defender_data(piece.type_id)
 	if defender_data == null:
 		return null
 	var weapon_instance := WeaponInstance.new(defender_data.weapon_data)
