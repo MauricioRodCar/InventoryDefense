@@ -25,7 +25,7 @@ overworld) — esa segunda moneda es un sistema futuro, no existe todavía, y no
 debe anticipar código para ella en ninguna de estas branches (no crear código
 muerto).
 
-## Por qué 4 branches y en este orden
+## Por qué 5 branches y en este orden
 
 Regla del proyecto: no modificar varios sistemas en una sola tarea. El draft de
 fin de wave necesariamente compone tres capacidades de dominios distintos
@@ -40,20 +40,32 @@ solo las **compone** llamando a APIs públicas ya existentes — mismo patrón q
 | 1 | `fix/inventory-piece-identity` | Inventory | Separa identidad de instancia (`id`) de identidad de tipo (`type_id`) en `InventoryPiece`. | — |
 | 2 | `feature/inventory-grid-expansion` | Inventory | `InventoryGrid` gana capacidad de agregar celdas en runtime. | — (independiente de 1) |
 | 3 | `feature/player-economy-spending` | Economy | `PlayerEconomy` gana gasto de oro (hoy solo tiene `add_gold`). | — (independiente de 1 y 2) |
-| 4 | `feature/end-of-wave-draft` | Nuevo dominio (cross-cutting, mismo rol que Bridge) | El sistema de draft real: 3 opciones al terminar wave, reroll pago. | 1, 2, 3 |
+| 4a | `feature/end-of-wave-draft-domain` | Nuevo dominio `Draft` | `DraftOption`/`DraftPool`/`Draft`: sortea 3 opciones (pieza o expansión de grid), elegir una la aplica, reroll paga oro. 100% headless, sin UI. | 2, 3 |
+| 4b | `feature/end-of-wave-draft-ui` | UI + composition root (`main.gd`) | `DraftView`, contador de oro, y loop mínimo de waves de sandbox para que el draft tenga un "después" jugable. | 4a |
 
-Las branches 1, 2 y 3 son independientes entre sí y se pueden hacer en cualquier
-orden. Solo la branch 4 depende de que las tres anteriores estén mergeadas.
+Las branches 1, 2 y 3 son independientes entre sí y se pueden hacer en
+cualquier orden (o en paralelo). La branch 4 se partió en dos mitades
+secuenciales — 4a (dominio) y 4b (UI + integración) — en vez de una sola,
+porque es sustancialmente más grande y nueva que las tres anteriores
+(introduce el primer sistema de aleatoriedad del proyecto y una superficie de
+UI entera) y cada mitad la va a ejecutar una instancia sin contexto y sin
+checkpoints intermedios: partirla permite revisar la pieza con más superficie
+de bugs (el sorteo ponderado) antes de que la UI se construya encima. 4a
+depende de que 2 y 3 ya estén mergeadas (usa `InventoryGrid.expand()` y
+`PlayerEconomy.spend_gold()` directamente). 4b depende de que 4a esté
+mergeada.
 
-Las branches 1, 2 y 3 están **completamente especificadas y listas para
-implementar**, cada una de forma independiente y autocontenida — cada spec
-incluye todo lo que hace falta saber sobre su propio dominio sin depender de que
-quien la implemente conozca el estado de las otras branches. Están pensadas para
-que cada una la ejecute una instancia distinta sin contexto compartido entre
-ellas (ni siquiera necesitan saber que las otras branches existen), en paralelo
-si hace falta. La branch 4 queda como roadmap de alto nivel a propósito: depende
-de que 1, 2 y 3 estén mergeadas, y se especificará en detalle recién cuando le
-toque el turno, para no fijar decisiones de diseño antes de tiempo.
+Las cinco branches (1, 2, 3, 4a, 4b) están **completamente especificadas y
+listas para implementar**, cada una de forma independiente y autocontenida —
+cada spec incluye todo lo que hace falta saber sobre su propio alcance sin
+depender de que quien la implemente conozca el estado de las otras branches ni
+por qué existe el roadmap completo. Están pensadas para que cada una la
+ejecute una instancia distinta sin contexto compartido entre ellas (ni
+siquiera necesitan saber que las otras branches existen — cada prompt de
+implementación les indica únicamente su propia sección). 1, 2 y 3 son
+independientes entre sí y se pueden ejecutar en paralelo; 4a depende de que 2
+y 3 estén mergeadas, y 4b depende de que 4a esté mergeada (ver la tabla y su
+nota más abajo).
 
 ---
 
@@ -363,18 +375,396 @@ es puramente aditiva, sin ningún consumidor de `spend_gold`/`can_afford` todav�
 - Commit único (esta branch modifica un solo sistema: Economy, sin ningún
   consumidor nuevo wireado).
 
-## Branch 4 — `feature/end-of-wave-draft` (roadmap, sin detallar aún)
+## Branch 4a — `feature/end-of-wave-draft-domain` (lista para implementar)
 
-Nuevo dominio (nombre a definir — candidato: `Scripts/Gameplay/Draft/`) que
-compone, sin modificar sus internals:
+### Problema
 
-- `InventoryPieceSource` (o una fuente real derivada) para ofrecer las piezas
-  candidatas.
-- La capacidad de expansión de `InventoryGrid` (branch 2) como una de las
-  recompensas posibles, con probabilidad menor que las piezas.
-- `PlayerEconomy.spend_gold`/`can_afford` (branch 3) para el reroll pago.
+No existe ningún mecanismo que ofrezca recompensas al jugador. El pitch del
+juego pide que, entre waves, el jugador reciba 3 opciones para elegir una:
+mayoritariamente piezas nuevas, con probabilidad menor una expansión de
+espacio de grid, con la posibilidad de pagar oro para rerollear el conjunto.
+Esta branch construye únicamente el dominio que decide y aplica eso —
+headless, sin ningún botón ni pantalla todavía (eso es la branch 4b).
 
-Se dispara cuando `CombatSimulation`/`BattleRunner` emite el fin de wave (ver
-`wave_completed` en Combat/Battle, ya existente). Presenta 3 opciones, el
-jugador elige una gratis o paga por rerollear el conjunto. Detallar la spec
-completa de esta branch recién cuando 1, 2 y 3 estén mergeadas.
+### Diseño
+
+Nuevo dominio en `Scripts/Gameplay/Draft/` (carpeta nueva, mismo nivel que
+`Inventory/`, `Combat/`, `Economy/`) — no es "Bridge", porque Bridge tiene un
+significado ya establecido y acotado ("Inventory ↔ Combat"); esto cruza
+Inventory ↔ Economy y es un dominio legítimo en sí mismo, con su propia
+autoridad y sus propias señales, igual que Economy lo es.
+
+**Convención a seguir, igual que en el resto del código ya existente:**
+aunque `InventoryGrid`, `InventoryPieceSource` y `PlayerEconomy` ya tienen
+`class_name` global, todo archivo nuevo que los use como tipo debe declarar
+su propio `const NombreDeClase = preload("res://...")` local (mismo patrón
+que ya usa, por ejemplo, `defender_translator.gd` con `InventoryPiece` pese a
+que también tiene `class_name` global). No depender del `class_name` global
+implícito en ningún archivo nuevo.
+
+**Dos tipos de recompensa, vía Strategy (mismo idioma que
+`TargetingPolicy`/`WeaponBehavior`):**
+
+- `DraftOption` (`draft_option.gd`) — contrato base, no se instancia
+  directamente. Declara dos métodos: `apply(grid: InventoryGrid,
+  piece_source: InventoryPieceSource) -> void` (aplica el efecto de esta
+  opción cuando se elige) y `describe() -> String` (texto breve para la UI,
+  p. ej. `"Pieza: square"`). Cada subclase implementa ambos usando solo la
+  referencia que le corresponde e ignorando la otra — se reciben ambas en
+  `apply()` para que el contrato no tenga que cambiar si en el futuro aparece
+  un tercer tipo de recompensa que necesite una referencia distinta; agregar
+  un tipo de recompensa nuevo es agregar una subclase, nunca modificar
+  `Draft` ni `DraftPool` (mismo criterio ya documentado para
+  `WeaponBehavior`: "agregar un patrón de ataque nuevo es agregar una
+  subclase, nunca modificar `WeaponData`, `AttackPhase` ni
+  `CombatSimulation`").
+- `PieceDraftOption` (`piece_draft_option.gd`, extiende `DraftOption`) —
+  guarda `type_id: StringName` y `shape: ShapeData` (los mismos dos datos que
+  ya necesita `InventoryPiece.new()`). `apply()` llama
+  `piece_source.offer_piece(InventoryPiece.new(type_id, shape))` — **no**
+  coloca la pieza directamente en el grid, la ofrece igual que cualquier otra
+  pieza de `InventoryPieceSource`, así que el jugador la arrastra él mismo
+  (esto es lo que hace que el único limitante real sea si le entra en el
+  grid, como se decidió para el draft). `describe()` devuelve `"Pieza: %s" %
+  type_id`.
+- `GridExpansionDraftOption` (`grid_expansion_draft_option.gd`, extiende
+  `DraftOption`) — guarda `additional_width: int` y `additional_height: int`.
+  `apply()` llama `grid.expand(additional_width, additional_height)`
+  directamente (API ya existente de la branch 2, mergeada). `describe()`
+  devuelve `"Grid +%dx%d" % [additional_width, additional_height]`.
+
+**Pool ponderado (Definition pura, sin estado de ejecución):**
+
+- `DraftPool` (`draft_pool.gd`) — mismo rol que `WaveData`/`DefenderCatalog`:
+  compartible, sin estado, no genera nada por sí sola. Constructor recibe un
+  `Array[DraftPool.Entry]`, donde `Entry` es una clase anidada (mismo patrón
+  que `DefenderCatalog.Entry`/`WaveData.SpawnEntry`) con dos campos: `option:
+  DraftOption` y `weight: float`.
+- Método `draw_options(count: int, rng: RandomNumberGenerator) ->
+  Array[DraftOption]`: sortea `count` opciones **con reemplazo** (la misma
+  opción puede repetirse entre las devueltas — no hay requisito de
+  unicidad) mediante selección por ruleta ponderada. `rng` se recibe como
+  parámetro explícito, **nunca** `randi()`/`randf()` global, para que el
+  sorteo sea determinista y testeable headless — mismo criterio que
+  `CombatSimulation.advance(delta)` recibe su `delta` explícito. Algoritmo
+  exacto (implementarlo tal cual, es la única parte de esta branch sin
+  precedente directo en el código existente):
+
+  ```
+  func draw_options(count, rng):
+      total_weight = suma de entry.weight de todas las entries
+      result = []
+      repetir count veces:
+          roll = rng.randf_range(0.0, total_weight)
+          cumulative = 0.0
+          para cada entry (en orden):
+              cumulative += entry.weight
+              si roll < cumulative:
+                  result.append(entry.option)
+                  cortar el for interno
+      devolver result
+  ```
+
+**Owner en runtime:**
+
+- `Draft` (`draft.gd`) — instancia en ejecución de un draft concreto. Única
+  autoridad y único emisor de señales de este dominio (mismo rol que
+  `InventoryGrid`/`CombatSimulation` en los suyos). No retiene ninguna
+  referencia a `InventoryGrid`/`InventoryPieceSource`/`PlayerEconomy` más
+  allá de los parámetros explícitos de cada llamada — mismo criterio que
+  `CombatSimulationBuilder.build()` no arrastra estado entre llamadas.
+  - Constructor `_init(pool: DraftPool, rng: RandomNumberGenerator,
+    reroll_cost: int)`: guarda los tres, sortea inmediatamente 3 opciones
+    (constante `OPTIONS_PER_DRAFT := 3`) llamando a un método privado
+    `_roll()`.
+  - `_roll()`: `_current_options = _pool.draw_options(OPTIONS_PER_DRAFT,
+    _rng)`, emite `options_changed(_current_options)`. (La emisión durante el
+    propio `_init()` no la puede escuchar nadie todavía — igual que
+    `InventoryGridView` no depende de una señal emitida durante la
+    construcción de `InventoryGrid`, sino que pinta el estado inicial
+    llamando explícitamente a `get_current_options()` tras conectarse; ver
+    branch 4b.)
+  - `get_current_options() -> Array[DraftOption]`: devuelve una copia (mismo
+    patrón que `InventoryGrid.get_pieces()`).
+  - `get_reroll_cost() -> int`: getter simple.
+  - `choose(index: int, grid: InventoryGrid, piece_source:
+    InventoryPieceSource) -> void`: `option = _current_options[index]`,
+    `option.apply(grid, piece_source)`, emite `option_chosen(option)`. No
+    valida que `index` esté en rango — quien llama (la UI, en branch 4b) es
+    responsable de no invocarlo con un índice inválido, mismo espíritu que
+    `add_gold`/`spend_gold` delegan la validación de precondiciones a quien
+    llama.
+  - `reroll(player_economy: PlayerEconomy) -> bool`: si
+    `player_economy.spend_gold(_reroll_cost)` devuelve `false` (no alcanza el
+    oro), `reroll()` también devuelve `false` sin tocar `_current_options` ni
+    emitir nada. Si tiene éxito, llama `_roll()` de nuevo y devuelve `true`.
+  - Señales: `options_changed(options: Array[DraftOption])` y
+    `option_chosen(option: DraftOption)`.
+
+### Cambios exactos por archivo
+
+Todos nuevos, ninguno existente se modifica:
+
+- `Scripts/Gameplay/Draft/draft_option.gd`
+- `Scripts/Gameplay/Draft/piece_draft_option.gd`
+- `Scripts/Gameplay/Draft/grid_expansion_draft_option.gd`
+- `Scripts/Gameplay/Draft/draft_pool.gd`
+- `Scripts/Gameplay/Draft/draft.gd`
+
+### Tests nuevos a agregar
+
+Carpeta nueva `Tests/Gameplay/Draft/`, registrar los 4 archivos en
+`Tests/test_runner.gd` (mismo patrón que cada suite ya registrada: agregar el
+`const Test... = preload(...)` y la llamada `_run_suite(Test....new())`).
+
+1. **`test_piece_draft_option.gd`**: `apply()` sobre un `InventoryPieceSource`
+   nuevo deja `get_available_pieces().size() == 1` con el `type_id`/`shape`
+   correctos; `describe()` incluye el `type_id`.
+2. **`test_grid_expansion_draft_option.gd`**: `apply()` sobre un
+   `InventoryGrid` nuevo agranda `get_width()`/`get_height()` exactamente en
+   `additional_width`/`additional_height`; `describe()` incluye las
+   dimensiones.
+3. **`test_draft_pool.gd`**:
+   - `draw_options(count, rng)` devuelve exactamente `count` elementos.
+   - Con una entry de peso `0.0` junto a otras de peso positivo, sortear
+     muchas veces (p. ej. 200 llamadas de `draw_options(1, rng)` con el mismo
+     `rng` reutilizado entre llamadas para no repetir la misma secuencia) y
+     verificar que la entry de peso `0.0` nunca aparece entre los resultados.
+   - Con un pool de una única entry, cualquier sorteo devuelve siempre esa
+     opción.
+4. **`test_draft.gd`** (usar un `DraftPool` de una sola `PieceDraftOption`
+   conocida en los casos donde el resultado exacto importa, para no depender
+   de qué tocó el sorteo):
+   - Al construirse, `get_current_options().size() == OPTIONS_PER_DRAFT`
+     (3).
+   - `choose(index, grid, piece_source)` aplica la opción correspondiente
+     (verificar el efecto sobre `piece_source`) y emite `option_chosen` con
+     esa opción.
+   - `reroll(economy)` con oro suficiente: devuelve `true`, descuenta
+     exactamente `reroll_cost` de `economy`, emite `options_changed`.
+   - `reroll(economy)` con oro insuficiente (`economy` recién creada, 0 de
+     oro): devuelve `false`, `economy.get_gold()` sigue en `0`.
+
+### Documentación a actualizar
+
+- `README.md`: agregar una sección nueva `### Draft`, en el mismo nivel que
+  `### Economía` (después de ella, antes de `### Próximo objetivo`), con el
+  mismo formato que las demás (Estado, Incluye, Notas de diseño — Draft).
+  Documentar ahí el porqué de cada decisión de esta spec (Strategy para las
+  dos clases de recompensa, `rng` explícito, `apply()` recibe ambas
+  referencias aunque cada subclase use solo una, `reroll()` no muta nada si
+  falla). Actualizar también la línea de "Próximo objetivo" que menciona la
+  fuente real de piezas, ya que esta branch es un paso concreto hacia eso.
+- `TODO.md`: no tiene secciones de Economía/Bridge/Battle tampoco (no se ha
+  mantenido por dominio desde las primeras iteraciones); no requiere cambios.
+
+### Definición de hecho
+
+- Todos los tests existentes siguen pasando sin modificarse.
+- Los tests nuevos de esta branch pasan.
+- `README.md` actualizado.
+- Commit único. Cero cambios en `InventoryGrid`, `InventoryPieceSource`,
+  `PlayerEconomy` ni en ningún archivo de UI — esta branch es puramente
+  aditiva, un dominio nuevo que consume APIs públicas ya existentes de otros
+  tres dominios sin modificar ninguno de ellos.
+
+---
+
+## Branch 4b — `feature/end-of-wave-draft-ui` (lista para implementar una vez 4a esté mergeada)
+
+### Problema
+
+El dominio `Draft` de la branch 4a no tiene ninguna forma de mostrarse ni de
+dispararse todavía. Además, hoy `main.gd` solo tiene una única `WaveData` de
+sandbox y no hay forma de volver a arrancar una batalla después de que
+termina la primera (el gatillo de "Start Battle" solo funciona mientras
+`BattleRunner.state == IDLE`, y nunca vuelve a `IDLE`) — sin esto, el draft
+no tendría ninguna "siguiente wave" a la que llevar al jugador, y la
+funcionalidad se sentiría incompleta. Por eso esta branch también agrega un
+loop mínimo de waves de sandbox, decisión ya tomada explícitamente para esta
+branch: no es un `RunController` ni progresión persistente (eso sigue fuera
+de alcance, ver README "Próximo objetivo") — es la misma clase de
+configuración de sandbox mínima que `main.gd` ya tiene para
+`DefenderCatalog`/`WaveData`, solo que ahora es una lista corta en vez de un
+único valor.
+
+### Diseño
+
+**`BattleRunner.start()` no tiene ningún guard de estado** (confirmado
+leyendo `Scripts/Gameplay/Battle/battle_runner.gd`): se puede volver a llamar
+en cualquier momento, reconstruye `_simulation` desde cero. Esto significa
+que el loop de waves no requiere ningún cambio en `BattleRunner` ni en
+`CombatSimulation` — toda la secuenciación vive en `main.gd`, el composition
+root, igual que ya es responsable de decidir cuándo arranca la primera
+batalla.
+
+**Gold counter** — nueva vista mínima, mismo patrón reactivo que el resto de
+la capa UI:
+
+- `GoldCounterView` (`Scripts/UI/Economy/gold_counter_view.gd`, extiende
+  `Label` directamente, sin `.tscn` propio — es un único nodo, se agrega
+  como `Label` en `main.tscn` con este script adjunto, mismo criterio que
+  `EnemyView`/`DefenderView` no tienen `.tscn` por ser triviales).
+  `set_player_economy(economy: PlayerEconomy) -> void`: se conecta a
+  `economy.gold_changed`, pinta el texto inicial con `economy.get_gold()`
+  inmediatamente (no depende de que se emita una señal — mismo motivo que
+  `Draft._roll()` durante `_init()` no es el mecanismo de pintado inicial de
+  `DraftView`, ver abajo), y actualiza el texto en cada `gold_changed`.
+
+**DraftView** — `Scripts/UI/Draft/draft_view.gd` +
+`scenes/UI/Draft/DraftView.tscn` (nueva carpeta, mismo patrón que
+`scenes/UI/Inventory/`). Layout simple sin pulir (no es el objetivo de esta
+iteración): un `Control` raíz con un `VBoxContainer` conteniendo 3 nodos
+`Button` (nombrados `Option0`/`Option1`/`Option2`) y un cuarto `Button`
+(`RerollButton`) separado. Siempre exactamente 3 botones de opción — no se
+crean/destruyen dinámicamente porque `Draft.OPTIONS_PER_DRAFT` es constante.
+
+- No conoce `InventoryGrid`/`InventoryPieceSource` directamente ni les llama
+  ningún método — mismo criterio que `InventoryGridView`/
+  `InventoryPieceSourceView` nunca mutan el dominio directamente, solo
+  `InventoryInteractionController` lo hace. `DraftView` emite intención vía
+  señales (`option_selected(index: int)`, `reroll_requested()`); quien
+  decide qué hacer con esa intención es `main.gd` (no se justifica una clase
+  controller aparte solo para esto, a diferencia del drag de inventario: acá
+  es un puñado de conexiones triviales de un botón a un método, mismo
+  criterio que ya usa `main.gd` para su propio gatillo temporal de "Start
+  Battle").
+- `_ready()`: conecta el `pressed` de cada botón de opción a un handler que
+  emite `option_selected(i)` con el índice correspondiente (usar `.bind(i)`
+  o closures, lo que sea idiomático), conecta `RerollButton.pressed` a emitir
+  `reroll_requested()`, y llama `hide()` — el panel arranca oculto.
+- `set_draft(draft: Draft, player_economy: PlayerEconomy) -> void`:
+  desconecta cualquier `draft`/`player_economy` previos (mismo patrón
+  `_disconnect_...` que el resto de las vistas), se conecta a
+  `draft.options_changed`, `draft.option_chosen` y
+  `player_economy.gold_changed`, pinta el estado inicial explícitamente
+  (`_render_options(draft.get_current_options())` +
+  actualizar el botón de reroll) — no depende de que se emita ninguna señal
+  durante la construcción de `draft`, mismo motivo por el que
+  `InventoryGridView.set_inventory_grid()` llama `_render_all()` en vez de
+  esperar una señal — y llama `show()`.
+- Al recibir `options_changed`: vuelve a pintar los 3 botones (`.text =
+  option.describe()`) y actualiza el estado del botón de reroll.
+- Al recibir `option_chosen`: se oculta (`hide()`) y se desconecta del
+  `draft`/`player_economy` actuales — un draft resuelto no debe seguir
+  reaccionando a cambios de oro ajenos a él.
+- Estado del botón de reroll: texto con el costo (`draft.get_reroll_cost()`)
+  y `disabled = not player_economy.can_afford(draft.get_reroll_cost())` —
+  recalculado tanto en `set_draft()` como en cada `gold_changed`.
+
+**`main.gd`** — cambios en el composition root:
+
+- Promover `piece_source` de variable local de `_ready()` a campo
+  `_piece_source: InventoryPieceSource` (mismo movimiento que ya se hizo con
+  `_grid` en la branch de Battle, documentado en el README: "`main.gd`
+  retiene ahora `InventoryGrid` como campo... para poder entregársela a
+  `BattleRunner.start()`"), porque `Draft.choose()` la necesita.
+- Reemplazar el campo `_wave_data: WaveData` por `_wave_schedule:
+  Array[WaveData]` y agregar `_current_wave_index: int = 0`. Renombrar
+  `_build_sandbox_wave_data() -> WaveData` a
+  `_build_sandbox_wave_schedule() -> Array[WaveData]`, devolviendo 2
+  `WaveData` (la primera con 2 goblins, la segunda con 3 — alcanza para
+  demostrar el loop sin necesitar una curva de dificultad real, que sigue
+  fuera de alcance).
+- Nuevos campos: `_draft_pool: DraftPool` (construido una vez en `_ready()`
+  vía un nuevo `_build_sandbox_draft_pool()`, con los mismos 3 tipos de pieza
+  que ya ofrece `InventoryPieceSourceSandbox` —reusar los mismos
+  `type_id`/`ShapeData` literales— a peso `5.0` cada uno, más
+  `GridExpansionDraftOption.new(1, 0)` y `GridExpansionDraftOption.new(0,
+  1)` a peso `1.0` cada una — proporción ~5:1 piezas:expansión, "probabilidad
+  menor" tal como se definió el objetivo de producto), `_rng:
+  RandomNumberGenerator` (creado una vez en `_ready()`, sin seed fija —
+  aleatoriedad real de juego, a diferencia de los tests de 4a que sí siembran
+  su propio `rng` para reproducibilidad), `_draft: Draft` (`null` mientras no
+  hay un draft activo), `const REROLL_COST := 5`.
+- Nuevos `@onready`: `_gold_counter_view: GoldCounterView` y `_draft_view:
+  DraftView`, apuntando a los nodos nuevos de `main.tscn` (ver abajo).
+- En `_ready()`, además de lo que ya existe: `_piece_source` en vez de
+  variable local; `_gold_counter_view.set_player_economy(_player_economy)`;
+  conectar `_battle_runner.state_changed` a un nuevo
+  `_on_battle_runner_state_changed`; conectar `_draft_view.option_selected` y
+  `_draft_view.reroll_requested` a dos nuevos handlers (estas dos conexiones
+  son de una sola vez, sobre el nodo persistente `_draft_view`, a diferencia
+  de las conexiones a `draft` que se rehacen en cada `set_draft()`).
+- Nuevo campo `_ready_for_next_wave: bool = true`.
+- `_unhandled_input`: la condición pasa a ser
+  `event.is_action_pressed("ui_accept") and _ready_for_next_wave and
+  _current_wave_index < _wave_schedule.size()`; al disparar, poner
+  `_ready_for_next_wave = false` y llamar `_battle_runner.start(_grid,
+  _combat_path, _defender_catalog, _wave_schedule[_current_wave_index])`
+  (reemplaza el uso de `_wave_data` por el elemento actual del schedule; ya
+  no se consulta `_battle_runner.state` para el gate, `_ready_for_next_wave`
+  lo reemplaza por completo).
+- `_on_battle_runner_state_changed(new_state: BattleRunner.State) -> void`:
+  si `new_state != BattleRunner.State.FINISHED`, no hacer nada. Si es
+  `FINISHED`: incrementar `_current_wave_index`; si ya
+  `_current_wave_index >= _wave_schedule.size()`, no hacer nada más (la demo
+  del sandbox termina ahí, sin más waves ni draft — esperado, no es un bug).
+  Si todavía queda wave siguiente: crear `_draft = Draft.new(_draft_pool,
+  _rng, REROLL_COST)`, conectar `_draft.option_chosen` a un nuevo
+  `_on_draft_option_chosen`, y llamar
+  `_draft_view.set_draft(_draft, _player_economy)`.
+- `_on_draft_option_chosen(_option: DraftOption) -> void`: `_draft = null`,
+  `_ready_for_next_wave = true`. (`_draft_view` ya se oculta a sí misma al
+  recibir esta misma señal — `main.gd` no la vuelve a esconder, solo
+  reacciona a nivel de composition root.)
+- `_on_draft_option_selected(index: int) -> void`: si `_draft == null`,
+  ignorar (no debería poder pasar si `_draft_view` está oculta, pero es una
+  guarda barata); si no, `_draft.choose(index, _grid, _piece_source)`.
+- `_on_draft_reroll_requested() -> void`: si `_draft == null`, ignorar; si
+  no, `_draft.reroll(_player_economy)`.
+
+**`scenes/main/main.tscn`**: agregar dos nodos nuevos, hermanos de los que ya
+existen:
+- Un `Label` llamado `GoldCounterView` con el script `gold_counter_view.gd`.
+- Un nodo instanciando `scenes/UI/Draft/DraftView.tscn`, llamado `DraftView`.
+
+Los nombres de nodo deben coincidir exactamente con los `@onready var
+_gold_counter_view: GoldCounterView = $GoldCounterView` /
+`_draft_view: DraftView = $DraftView` que se agregan a `main.gd`.
+
+### Call sites verificados que NO requieren cambios
+
+`BattleRunner` y `CombatSimulation`: cero cambios (confirmado que
+`BattleRunner.start()` no tiene guard de estado, así que el loop de waves no
+los necesita tocar). `InventoryGridView`, `InventoryPieceSourceView`,
+`InventoryInteractionController`: cero cambios, `_piece_source` sigue
+usándose exactamente igual que hoy en su cableado existente, solo cambia de
+variable local a campo.
+
+### Tests nuevos a agregar
+
+Ninguno. Mismo criterio que ya aplica el proyecto al resto de la capa `UI/` y
+a `InventoryInteractionController`/`main.gd`: no llevan tests headless. La
+verificación de esta branch es manual, en el editor de Godot — ver
+Definición de hecho.
+
+### Documentación a actualizar
+
+- `README.md`: agregar notas de diseño nuevas en la sección `### Draft`
+  (agregada en 4a) describiendo `DraftView`/`GoldCounterView` y el loop de
+  waves de sandbox, siguiendo el mismo estilo que las notas de "Battle" y
+  "main.gd" ya documentan sus propias vistas y su propio cableado. Actualizar
+  la sección "Próximo objetivo": la línea sobre reemplazar el
+  `DefenderCatalog`/`WaveData` de sandbox por configuración real de ronda
+  ahora aplica también al `_wave_schedule`/`_draft_pool` de sandbox
+  agregados acá.
+- `TODO.md`: no requiere cambios (mismo motivo que en branches anteriores).
+
+### Definición de hecho
+
+- Todos los tests existentes (headless) siguen pasando sin modificarse — esta
+  branch no debería romper ningún test automatizado ya que no toca ningún
+  archivo con tests.
+- `README.md` actualizado.
+- Commit único.
+- Verificación manual en el editor de Godot (correr `main.tscn`): arrancar la
+  primera wave con Enter, ver el contador de oro subir a medida que mueren
+  enemigos, ver el panel de draft aparecer al terminar la wave con 3 opciones
+  legibles, confirmar que el botón de reroll está deshabilitado si no alcanza
+  el oro y descuenta + cambia las opciones si se presiona con oro suficiente,
+  elegir una opción y confirmar que aplica (una pieza nueva aparece en
+  `InventoryPieceSourceView`, o el grid se ve más grande), y que Enter vuelve
+  a arrancar la segunda wave del schedule. Mismo tipo de verificación manual
+  que ya hiciste para la branch 2 (gatillo de debug temporal si hace falta
+  aislar un paso, revertido antes de commitear).
