@@ -10,6 +10,10 @@ const InventoryGrid = preload("res://Scripts/Gameplay/Inventory/inventory_grid.g
 const InventoryPieceSourceSandbox = preload("res://Scripts/Gameplay/Inventory/inventory_piece_source_sandbox.gd")
 const CombatPath = preload("res://Scripts/Gameplay/Combat/combat_path.gd")
 const WeaponData = preload("res://Scripts/Gameplay/Combat/weapon_data.gd")
+const SingleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/single_shot_weapon_behavior.gd")
+const DoubleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/double_shot_weapon_behavior.gd")
+const HighestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/highest_progress_targeting_policy.gd")
+const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_health_targeting_policy.gd")
 const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
 const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
 const DefenderData = preload("res://Scripts/Gameplay/Bridge/defender_data.gd")
@@ -60,13 +64,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		_battle_runner.start(_grid, _combat_path, _defender_catalog, _wave_data)
 
 ## Catálogo de prueba para esta vertical slice: un DefenderData por cada tipo
-## de InventoryPiece que ofrece InventoryPieceSourceSandbox. A reemplazar
-## cuando exista una fuente real de configuración de ronda.
+## de InventoryPiece que ofrece InventoryPieceSourceSandbox, cada uno un
+## arquetipo distinto compuesto únicamente a partir de WeaponData/
+## WeaponBehavior/TargetingPolicy ya existentes (ninguna subclase nueva de
+## Defender ni DefenderData): square → Vanguardia (HighestProgress +
+## SingleShot, daño alto y cadencia lenta), bar → Rematador (LowestHealth +
+## SingleShot, daño medio y cadencia rápida), corner → Artillero
+## (HighestProgress + DoubleShot, daño menor repartido en dos impactos). A
+## reemplazar cuando exista una fuente real de configuración de ronda.
 func _build_sandbox_defender_catalog() -> DefenderCatalog:
 	return DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"square_defender", WeaponData.new(&"square_weapon", 2, 1.0))),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"bar_defender", WeaponData.new(&"bar_weapon", 3, 1.5))),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"corner_defender", WeaponData.new(&"corner_weapon", 1, 0.5))),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new())),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new())),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new())),
 	])
 
 ## Calendario de prueba: tres goblins espaciados en el tiempo, suficiente
