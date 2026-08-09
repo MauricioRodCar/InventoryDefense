@@ -24,4 +24,4 @@ func translate(piece: InventoryPiece, catalog: DefenderCatalog) -> Defender:
 	if defender_data == null:
 		return null
 	var weapon_instance := WeaponInstance.new(defender_data.weapon_data)
-	return Defender.new(defender_data.id, weapon_instance)
+	return Defender.new(defender_data.id, weapon_instance, defender_data.targeting_policy)
