@@ -98,14 +98,14 @@ func _add_defender_view(defender: Defender, index: int) -> void:
 ## objetivo (ver ProjectileView). Si falta cualquiera de las dos vistas (no
 ## debería pasar dado el orden de señales de CombatSimulation.advance(), pero
 ## es una guarda barata), no rompe el resto de la batalla por un proyectil.
-func _on_defender_attacked(defender: Defender, target: Enemy, _damage: int) -> void:
+func _on_defender_attacked(defender: Defender, target: Enemy, _damage: int, is_critical: bool) -> void:
 	var defender_view: DefenderView = _defender_views.get(defender)
 	var enemy_view: EnemyView = _enemy_views.get(target)
 	if defender_view == null or enemy_view == null:
 		return
 	var projectile := ProjectileView.new()
 	add_child(projectile)
-	projectile.setup(defender_view.position, enemy_view.position)
+	projectile.setup(defender_view.position, enemy_view.position, is_critical)
 
 func _health_ratio(enemy: Enemy) -> float:
 	if enemy.max_health <= 0:

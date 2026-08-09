@@ -19,3 +19,13 @@ func test_compone_el_weapon_behavior_indicado_explicitamente(t) -> void:
 	var behavior := SingleShotWeaponBehavior.new()
 	var weapon := WeaponData.new(&"sword", 5, 1.5, behavior)
 	t.assert_eq(weapon.weapon_behavior, behavior, "WeaponData debe exponer el WeaponBehavior que se le compuso explícitamente")
+
+func test_sin_indicar_crit_queda_en_los_valores_por_defecto(t) -> void:
+	var weapon := WeaponData.new(&"sword", 5, 1.5)
+	t.assert_eq(weapon.crit_chance, 0.0, "sin indicar crit_chance, WeaponData debe defaultear a 0.0 (nunca crítico)")
+	t.assert_eq(weapon.crit_multiplier, 2.0, "sin indicar crit_multiplier, WeaponData debe defaultear a 2.0")
+
+func test_guarda_crit_chance_y_crit_multiplier_indicados_explicitamente(t) -> void:
+	var weapon := WeaponData.new(&"sword", 5, 1.5, SingleShotWeaponBehavior.new(), 0.3, 1.5)
+	t.assert_eq(weapon.crit_chance, 0.3, "WeaponData debe guardar el crit_chance indicado")
+	t.assert_eq(weapon.crit_multiplier, 1.5, "WeaponData debe guardar el crit_multiplier indicado")

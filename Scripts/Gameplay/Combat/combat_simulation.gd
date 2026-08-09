@@ -24,7 +24,7 @@ const Wave = preload("res://Scripts/Gameplay/Combat/wave.gd")
 
 signal enemy_reached_end(enemy: Enemy)
 signal enemy_defeated(enemy: Enemy)
-signal defender_attacked(defender: Defender, target: Enemy, damage: int)
+signal defender_attacked(defender: Defender, target: Enemy, damage: int, is_critical: bool)
 signal enemy_spawned(enemy: Enemy)
 signal wave_completed
 
@@ -35,12 +35,14 @@ var _enemies: Array[Enemy] = []
 var _defenders: Array[Defender] = []
 var _movement_phase: MovementPhase
 var _attack_phase: AttackPhase
+var _rng: RandomNumberGenerator
 
-func _init(p_path: CombatPath, p_wave: Wave = null) -> void:
+func _init(p_path: CombatPath, p_wave: Wave = null, p_rng: RandomNumberGenerator = null) -> void:
 	_path = p_path
 	_wave = p_wave
 	_movement_phase = MovementPhase.new()
 	_attack_phase = AttackPhase.new()
+	_rng = p_rng if p_rng != null else RandomNumberGenerator.new()
 
 func add_enemy(enemy: Enemy) -> void:
 	_enemies.append(enemy)
@@ -106,10 +108,10 @@ func _resolve_spawns(delta: float) -> void:
 func _resolve_attacks(delta: float) -> void:
 	for defender in _defenders:
 		defender.weapon_instance._tick(delta)
-	for result in _attack_phase.advance(_defenders, _enemies):
+	for result in _attack_phase.advance(_defenders, _enemies, _rng):
 		result.target._take_damage(result.damage)
 		result.defender.weapon_instance._reset_cooldown()
-		defender_attacked.emit(result.defender, result.target, result.damage)
+		defender_attacked.emit(result.defender, result.target, result.damage, result.is_critical)
 
 func _resolve_defeated() -> void:
 	var defeated: Array[Enemy] = []

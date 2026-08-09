@@ -20,7 +20,7 @@
 [ ] Integración con InventoryGrid (piezas colocadas -> Defender)
 [ ] Representación visual / UI de combate
 [ ] Animaciones
-[ ] Projectiles
+[x] Projectiles
 [ ] Efectos de estado
 [ ] Resistencias
 [ ] Alcance
