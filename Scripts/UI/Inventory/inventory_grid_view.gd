@@ -36,8 +36,9 @@ func set_inventory_grid(grid: InventoryGrid) -> void:
 
 	_grid.piece_placed.connect(_on_piece_placed)
 	_grid.piece_removed.connect(_on_piece_removed)
-	_background.setup(_grid.width, _grid.height, cell_size)
-	custom_minimum_size = Vector2(_grid.width * cell_size, _grid.height * cell_size)
+	_grid.grid_expanded.connect(_on_grid_expanded)
+	_background.setup(_grid.get_width(), _grid.get_height(), cell_size)
+	custom_minimum_size = Vector2(_grid.get_width() * cell_size, _grid.get_height() * cell_size)
 	_render_all()
 
 func _exit_tree() -> void:
@@ -56,6 +57,10 @@ func _on_piece_removed(piece: InventoryPiece) -> void:
 		return
 	_piece_views.erase(piece)
 	view.queue_free()
+
+func _on_grid_expanded(new_width: int, new_height: int) -> void:
+	_background.setup(new_width, new_height, cell_size)
+	custom_minimum_size = Vector2(new_width * cell_size, new_height * cell_size)
 
 func _add_piece_view(piece: InventoryPiece) -> void:
 	if _piece_views.has(piece):
@@ -77,3 +82,5 @@ func _disconnect_grid() -> void:
 		_grid.piece_placed.disconnect(_on_piece_placed)
 	if _grid.piece_removed.is_connected(_on_piece_removed):
 		_grid.piece_removed.disconnect(_on_piece_removed)
+	if _grid.grid_expanded.is_connected(_on_grid_expanded):
+		_grid.grid_expanded.disconnect(_on_grid_expanded)
