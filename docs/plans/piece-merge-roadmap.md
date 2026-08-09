@@ -1,5 +1,14 @@
 # Roadmap: fusión de piezas
 
+**Estado: completo.** Las 3 branches (A, B, C) están mergeadas a `main`. El
+jugador puede arrastrar una pieza sobre otra del mismo tipo y rango para
+fusionarlas (hasta rango 3), y una pieza fusionada produce un `Defender` más
+fuerte en combate. Pendiente: definir la apariencia visual de una pieza de
+rango superior (deliberadamente sin resolver en este roadmap) y expandir el
+contenido de sandbox si se quiere demostrar el sistema con más margen que el
+actual (con 2 waves, el techo práctico hoy es rango 2). Este documento queda
+como referencia histórica de cómo se diseñó y secuenció el trabajo.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como **arquitecto**
