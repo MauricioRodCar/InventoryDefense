@@ -10,8 +10,13 @@ extends RefCounted
 ## que id identifica la instancia concreta y se genera automáticamente al
 ## construirse, para que InventoryGrid pueda usarlo como clave única en su
 ## diccionario interno aunque dos piezas ofrecidas compartan type_id.
+##
+## rank empieza en 1 y solo sube fusionando dos piezas compatibles vía
+## InventoryGrid.merge_pieces, hasta MAX_RANK.
 
 const ShapeData = preload("res://Scripts/Gameplay/Inventory/shape_data.gd")
+
+const MAX_RANK := 3
 
 static var _next_instance_id: int = 0
 
@@ -19,6 +24,7 @@ var id: StringName
 var type_id: StringName
 var shape: ShapeData
 var anchor = null # Vector2i cuando está colocada, null en caso contrario.
+var rank: int = 1
 
 func _init(p_type_id: StringName, p_shape: ShapeData) -> void:
 	type_id = p_type_id
@@ -45,3 +51,7 @@ func _place_at(new_anchor: Vector2i) -> void:
 ## Uso interno de InventoryGrid: único responsable de decidir remoción.
 func _clear_placement() -> void:
 	anchor = null
+
+## Uso interno de InventoryGrid: único responsable de decidir fusión.
+func _increase_rank() -> void:
+	rank += 1

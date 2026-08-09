@@ -103,3 +103,92 @@ func test_expand_emite_grid_expanded_una_vez(t) -> void:
 	t.assert_eq(expanded_events.size(), 1, "grid_expanded debe emitirse exactamente una vez")
 	t.assert_eq(expanded_events[0][0], 3, "grid_expanded debe reportar el nuevo ancho")
 	t.assert_eq(expanded_events[0][1], 5, "grid_expanded debe reportar el nuevo alto")
+
+func test_can_merge_true_para_dos_piezas_colocadas_compatibles(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"square", shape)
+	grid.place_piece(source, Vector2i(0, 0))
+	grid.place_piece(target, Vector2i(1, 0))
+
+	t.assert_true(grid.can_merge(source, target), "dos piezas colocadas, mismo type_id y mismo rank deben poder fusionarse")
+
+func test_can_merge_false_si_difiere_type_id(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"bar", shape)
+	grid.place_piece(target, Vector2i(1, 0))
+
+	t.assert_true(not grid.can_merge(source, target), "piezas con distinto type_id no deben poder fusionarse")
+
+func test_can_merge_false_si_difiere_rank(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"square", shape)
+	target._increase_rank()
+	grid.place_piece(target, Vector2i(1, 0))
+
+	t.assert_true(not grid.can_merge(source, target), "piezas con distinto rank no deben poder fusionarse")
+
+func test_can_merge_false_si_target_no_esta_colocada(t) -> void:
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"square", shape)
+
+	t.assert_true(not InventoryGrid.new(4, 4).can_merge(source, target), "target sin colocar no debe poder recibir una fusión")
+
+func test_can_merge_false_si_source_es_target(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var piece := InventoryPiece.new(&"square", shape)
+	grid.place_piece(piece, Vector2i(0, 0))
+
+	t.assert_true(not grid.can_merge(piece, piece), "una pieza no debe poder fusionarse consigo misma")
+
+func test_can_merge_false_si_source_alcanzo_max_rank(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"square", shape)
+	for i in InventoryPiece.MAX_RANK - 1:
+		source._increase_rank()
+		target._increase_rank()
+	grid.place_piece(target, Vector2i(1, 0))
+
+	t.assert_true(not grid.can_merge(source, target), "una pieza que ya alcanzó MAX_RANK no debe poder fusionarse más")
+
+func test_merge_pieces_valido_sube_rank_y_emite_pieces_merged(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"square", shape)
+	grid.place_piece(target, Vector2i(1, 0))
+	var merged_events: Array = []
+	grid.pieces_merged.connect(func(s, tg): merged_events.append([s, tg]))
+
+	var result: bool = grid.merge_pieces(source, target)
+
+	t.assert_true(result, "fusionar un par válido debe devolver true")
+	t.assert_eq(target.rank, 2, "target debe subir de rank tras la fusión")
+	t.assert_eq(merged_events.size(), 1, "pieces_merged debe emitirse exactamente una vez")
+	t.assert_eq(merged_events[0][0], source, "pieces_merged debe reportar source")
+	t.assert_eq(merged_events[0][1], target, "pieces_merged debe reportar target")
+
+func test_merge_pieces_invalido_no_muta_ni_emite(t) -> void:
+	var grid := InventoryGrid.new(4, 4)
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var source := InventoryPiece.new(&"square", shape)
+	var target := InventoryPiece.new(&"bar", shape)
+	grid.place_piece(target, Vector2i(1, 0))
+	var merged_events: Array = []
+	grid.pieces_merged.connect(func(s, tg): merged_events.append([s, tg]))
+
+	var result: bool = grid.merge_pieces(source, target)
+
+	t.assert_true(not result, "fusionar un par inválido debe devolver false")
+	t.assert_eq(source.rank, 1, "source no debe mutar su rank si la fusión falla")
+	t.assert_eq(target.rank, 1, "target no debe mutar su rank si la fusión falla")
+	t.assert_eq(merged_events.size(), 0, "pieces_merged no debe emitirse si la fusión falla")
