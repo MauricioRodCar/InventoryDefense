@@ -1,5 +1,10 @@
 # Spec: daño de área
 
+**Estado: completo.** Mergeado a `main`. Artillero (`corner`) ataca con
+`AreaWeaponBehavior` en sus tres rangos, radio 60.0 de sandbox. Confirmado
+en juego: con el espaciado actual de enemigos en las waves de sandbox, el
+efecto práctico más común es golpear a dos enemigos cercanos a la vez.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como
