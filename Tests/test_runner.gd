@@ -30,6 +30,10 @@ const TestCombatArchetypes = preload("res://Tests/Gameplay/Bridge/test_combat_ar
 const TestCombatSimulationBuilder = preload("res://Tests/Gameplay/Bridge/test_combat_simulation_builder.gd")
 const TestPlayerEconomy = preload("res://Tests/Gameplay/Economy/test_player_economy.gd")
 const TestEnemyRewardCatalog = preload("res://Tests/Gameplay/Economy/test_enemy_reward_catalog.gd")
+const TestPieceDraftOption = preload("res://Tests/Gameplay/Draft/test_piece_draft_option.gd")
+const TestGridExpansionDraftOption = preload("res://Tests/Gameplay/Draft/test_grid_expansion_draft_option.gd")
+const TestDraftPool = preload("res://Tests/Gameplay/Draft/test_draft_pool.gd")
+const TestDraft = preload("res://Tests/Gameplay/Draft/test_draft.gd")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -63,6 +67,10 @@ func _initialize() -> void:
 	_run_suite(TestCombatSimulationBuilder.new())
 	_run_suite(TestPlayerEconomy.new())
 	_run_suite(TestEnemyRewardCatalog.new())
+	_run_suite(TestPieceDraftOption.new())
+	_run_suite(TestGridExpansionDraftOption.new())
+	_run_suite(TestDraftPool.new())
+	_run_suite(TestDraft.new())
 
 	print("")
 	print("Resultado: %d passed, %d failed" % [_passed, _failed])

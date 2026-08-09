@@ -207,9 +207,35 @@ Incluye:
 - `BattleRunner` gana dos campos opcionales, `player_economy` y `enemy_reward_catalog`, asignados desde fuera antes de `start()` (mismo patrón que `battle_view`). Si ambos están presentes, `start()` conecta `enemy_defeated` a un método privado que consulta la recompensa y, solo si es mayor que 0, llama `player_economy.add_gold()` — evitando violar el invariante de `add_gold` para enemigos sin recompensa configurada. Sin ambos campos asignados, `BattleRunner` se comporta exactamente igual que antes de esta iteración.
 - `main.gd` construye un `PlayerEconomy` y un `EnemyRewardCatalog` de sandbox (una recompensa para el único tipo de enemigo de su `WaveData` de prueba), mismo espíritu que su `DefenderCatalog`/`WaveData` de sandbox: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
 
+### Draft
+
+Estado:
+✅ Dominio `Draft` implementado: sortea 3 opciones (pieza o expansión de grid) mediante ruleta ponderada, aplica la elegida y permite pagar oro para rerollear el conjunto. 100% headless, sin ningún botón ni pantalla todavía.
+
+Incluye:
+
+- `DraftOption` (dominio; contrato base sin estado ni propiedad del dominio; declara `apply(grid, piece_source)` y `describe()`, no se instancia directamente)
+- `PieceDraftOption` (`DraftOption`; ofrece una `InventoryPiece` nueva a través de `InventoryPieceSource` al aplicarse, sin colocarla directamente en el grid)
+- `GridExpansionDraftOption` (`DraftOption`; llama `InventoryGrid.expand()` al aplicarse)
+- `DraftPool` (dominio; definición pura de qué opciones puede ofrecer un draft y con qué peso relativo cada una, sin estado de ejecución — mismo rol que `WaveData`/`DefenderCatalog`)
+- `Draft` (dominio; instancia en ejecución de un draft concreto — única autoridad y único emisor de señales de este dominio, mismo rol que `InventoryGrid`/`CombatSimulation` en los suyos)
+- Tests headless
+
+#### Notas de diseño — Draft
+
+- `Scripts/Gameplay/Draft/` es un dominio nuevo, no "Bridge": Bridge tiene un significado ya acotado ("Inventory ↔ Combat"); Draft cruza Inventory ↔ Economy y tiene su propia autoridad y señales, igual que Economy las tiene.
+- Dos tipos de recompensa vía Strategy (mismo idioma que `TargetingPolicy`/`WeaponBehavior`, el idioma natural en GDScript al no existir interfaces): `PieceDraftOption` y `GridExpansionDraftOption` extienden `DraftOption`. Agregar un tipo de recompensa nuevo es agregar una subclase, nunca modificar `Draft` ni `DraftPool` — mismo criterio ya documentado para `WeaponBehavior`.
+- `DraftOption.apply()` recibe siempre tanto `InventoryGrid` como `InventoryPieceSource`, aunque cada subclase concreta use solo una de las dos referencias e ignore la otra: así el contrato no tiene que cambiar si en el futuro aparece un tercer tipo de recompensa que necesite una referencia distinta.
+- `PieceDraftOption.apply()` ofrece la pieza vía `InventoryPieceSource.offer_piece()` en vez de colocarla directamente en el grid: el jugador la arrastra él mismo, igual que cualquier otra pieza ofrecida, así que el único limitante real de una recompensa de pieza es si le entra en el grid actual — las unidades son gratis, el espacio no.
+- `DraftPool.draw_options(count, rng)` recibe `rng: RandomNumberGenerator` como parámetro explícito, nunca `randi()`/`randf()` global, para que el sorteo sea determinista y testeable headless — mismo criterio que `CombatSimulation.advance(delta)` recibe su `delta` explícito. El sorteo es por ruleta ponderada, con reemplazo (la misma opción puede repetirse entre las tres devueltas de un mismo draft).
+- `Draft` no retiene ninguna referencia a `InventoryGrid`/`InventoryPieceSource`/`PlayerEconomy` más allá de los parámetros explícitos de cada llamada (`choose`/`reroll`) — mismo criterio que `CombatSimulationBuilder.build()` no arrastra estado entre llamadas.
+- `Draft.reroll(player_economy)` no muta las opciones actuales ni emite ninguna señal si `player_economy.spend_gold()` falla por falta de oro: quedarse sin oro suficiente es un resultado esperado del flujo normal del juego, no amerita ningún efecto sobre el draft en curso.
+- `Draft.choose(index, ...)` no valida que `index` esté en rango: quien llama (la UI, todavía sin construir) es responsable de no invocarlo con un índice inválido, mismo espíritu que `PlayerEconomy.add_gold`/`spend_gold` delegan la validación de precondiciones a quien llama.
+- El oro que se gasta en el reroll sigue siendo exclusivamente la moneda de escenario (`PlayerEconomy`), no una futura moneda de mejora permanente de overworld — esa segunda moneda no existe todavía y no se anticipó código para ella.
+
 ### Próximo objetivo
 
-Implementar una fuente real de piezas sobre `InventoryPieceSource` (tienda, cofres, recompensas, draft o crafting) — probablemente la primera consumidora real de `PlayerEconomy` (gastar oro), todavía sin implementar.
+Cablear el dominio `Draft` (ver más arriba) a una interfaz real y a `main.gd`: ya resuelve headless el sorteo, la elección y el reroll de recompensas de fin de wave, pero todavía no hay ningún botón, pantalla ni disparador que lo conecte al loop de juego.
 
 Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
 
