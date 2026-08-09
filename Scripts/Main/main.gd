@@ -144,15 +144,15 @@ func _on_draft_reroll_requested() -> void:
 ## no una curva de balance final).
 func _build_sandbox_defender_catalog() -> DefenderCatalog:
 	return DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 12, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 18, 2.0, SingleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 3),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new()), 3),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 12, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 18, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, DoubleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),
 	])
 
 ## Calendario de prueba: dos waves cortas de goblins (2 y 3 respectivamente),
@@ -160,7 +160,7 @@ func _build_sandbox_defender_catalog() -> DefenderCatalog:
 ## resolver un draft, arrancar la siguiente) sin necesitar una curva de
 ## dificultad real, que sigue fuera de alcance.
 func _build_sandbox_wave_schedule() -> Array[WaveData]:
-	var goblin := EnemyData.new(&"goblin", 10, 20.0)
+	var goblin := EnemyData.new(&"goblin", 60, 20.0)
 	var first_wave := WaveData.new([
 		WaveData.SpawnEntry.new(0.0, goblin),
 		WaveData.SpawnEntry.new(2.0, goblin),

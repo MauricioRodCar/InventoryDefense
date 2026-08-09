@@ -106,7 +106,7 @@ func test_los_tres_arquetipos_combaten_correctamente_en_combat_simulation_sin_mo
 	# Array en vez de int local: los lambdas de GDScript capturan variables
 	# locales por valor, no por referencia, así que un int se congelaría en 0.
 	var attack_count := [0]
-	simulation.defender_attacked.connect(func(_defender, _target, _damage): attack_count[0] += 1)
+	simulation.defender_attacked.connect(func(_defender, _target, _damage, _is_critical): attack_count[0] += 1)
 
 	simulation.advance(2.0)
 

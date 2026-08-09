@@ -11,6 +11,7 @@ const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowes
 const LowestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_progress_targeting_policy.gd")
 const WeaponBehavior = preload("res://Scripts/Gameplay/Combat/weapon_behavior.gd")
 const SingleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/single_shot_weapon_behavior.gd")
+const DoubleShotWeaponBehavior = preload("res://Scripts/Gameplay/Combat/double_shot_weapon_behavior.gd")
 
 ## Test double: un WeaponBehavior que siempre produce dos impactos sobre el
 ## objetivo prioritario. Existe únicamente para probar que AttackPhase
@@ -145,3 +146,39 @@ func test_attack_phase_delega_en_weapon_behavior_la_cantidad_de_impactos(t) -> v
 	t.assert_eq(results[0].defender, defender, "cada Result generado a partir de un impacto debe referenciar al defensor que ataca")
 	t.assert_eq(results[0].target, enemy, "cada Result debe reflejar el objetivo devuelto por el impacto")
 	t.assert_eq(results[1].damage, 5, "cada Result debe reflejar el daño devuelto por el impacto")
+
+func test_sin_crit_chance_configurado_nunca_hay_critico_ni_se_altera_el_dano(t) -> void:
+	var enemy := Enemy.new(&"e1", 100, 1.0)
+	var weapon_data := WeaponData.new(&"sword", 5, 1.0)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	var phase := AttackPhase.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+
+	var results := phase.advance([defender], [enemy], rng)
+
+	t.assert_eq(results[0].is_critical, false, "con crit_chance en 0.0 (default) nunca debe salir crítico, sin importar el rng")
+	t.assert_eq(results[0].damage, 5, "con crit_chance en 0.0 el daño debe ser exactamente el daño base")
+
+func test_con_crit_chance_1_siempre_es_critico_y_multiplica_el_dano(t) -> void:
+	var enemy := Enemy.new(&"e1", 100, 1.0)
+	var weapon_data := WeaponData.new(&"sword", 5, 1.0, SingleShotWeaponBehavior.new(), 1.0, 2.0)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	var phase := AttackPhase.new()
+
+	var results := phase.advance([defender], [enemy])
+
+	t.assert_eq(results[0].is_critical, true, "con crit_chance en 1.0 el ataque siempre debe ser crítico")
+	t.assert_eq(results[0].damage, roundi(5 * 2.0), "el daño crítico debe ser el daño base multiplicado por crit_multiplier")
+
+func test_el_sorteo_de_critico_es_por_impacto_no_por_ataque(t) -> void:
+	var enemy := Enemy.new(&"e1", 100, 1.0)
+	var weapon_data := WeaponData.new(&"double", 5, 1.0, DoubleShotWeaponBehavior.new(), 1.0, 2.0)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	var phase := AttackPhase.new()
+
+	var results := phase.advance([defender], [enemy])
+
+	t.assert_eq(results.size(), 2, "DoubleShotWeaponBehavior debe seguir produciendo dos Result")
+	t.assert_eq(results[0].is_critical, true, "con crit_chance en 1.0, el primer impacto debe ser crítico")
+	t.assert_eq(results[1].is_critical, true, "con crit_chance en 1.0, el segundo impacto también debe ser crítico, sorteado de forma independiente")

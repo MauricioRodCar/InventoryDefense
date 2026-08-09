@@ -41,13 +41,27 @@ func test_defensor_listo_ataca_al_objetivo_y_aplica_dano(t) -> void:
 	simulation.add_enemy(enemy)
 	simulation.add_defender(defender)
 	var attack_events: Array = []
-	simulation.defender_attacked.connect(func(d, target, damage): attack_events.append([d, target, damage]))
+	simulation.defender_attacked.connect(func(d, target, damage, is_critical): attack_events.append([d, target, damage, is_critical]))
 
 	simulation.advance(0.1)
 
 	t.assert_eq(enemy.current_health, 6, "el enemigo debe recibir el daño del arma del defensor")
-	t.assert_eq(attack_events, [[defender, enemy, 4]], "defender_attacked debe emitirse con defensor, objetivo y daño")
+	t.assert_eq(attack_events, [[defender, enemy, 4, false]], "defender_attacked debe emitirse con defensor, objetivo, daño y si fue crítico")
 	t.assert_true(not weapon_instance.is_ready(), "atacar debe reiniciar el cooldown del arma")
+
+func test_defender_attacked_propaga_is_critical(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+	var enemy := Enemy.new(&"e1", 100, 0.0)
+	var weapon_data := WeaponData.new(&"sword", 4, 1.0, null, 1.0, 2.0)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	simulation.add_enemy(enemy)
+	simulation.add_defender(defender)
+	var attack_events: Array = []
+	simulation.defender_attacked.connect(func(d, target, damage, is_critical): attack_events.append([d, target, damage, is_critical]))
+
+	simulation.advance(0.1)
+
+	t.assert_eq(attack_events, [[defender, enemy, roundi(4 * 2.0), true]], "con crit_chance en 1.0, defender_attacked debe emitirse con is_critical en true y el daño ya multiplicado")
 
 func test_ataca_al_enemigo_con_mayor_path_progress(t) -> void:
 	var simulation := CombatSimulation.new(CombatPath.new(100.0))
