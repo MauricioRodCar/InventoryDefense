@@ -36,3 +36,8 @@ func test_dos_piezas_del_mismo_tipo_comparten_type_id_pero_no_id(t) -> void:
 	t.assert_eq(piece_a.type_id, &"square", "type_id debe reflejar el tipo pasado al constructor")
 	t.assert_eq(piece_b.type_id, &"square", "dos piezas del mismo tipo deben compartir type_id")
 	t.assert_true(piece_a.id != piece_b.id, "dos instancias distintas deben tener id distinto aunque compartan type_id")
+
+func test_pieza_nueva_arranca_en_rango_1(t) -> void:
+	var shape := ShapeData.new(&"1x1", [Vector2i(0, 0)])
+	var piece := InventoryPiece.new(&"piece_1", shape)
+	t.assert_eq(piece.rank, 1, "una pieza nueva debe arrancar en rank == 1")
