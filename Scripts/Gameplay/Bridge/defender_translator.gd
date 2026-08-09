@@ -7,7 +7,8 @@ extends RefCounted
 ## MovementPhase/AttackPhase: recibe datos, devuelve un resultado, no muta
 ## nada fuera de lo que crea.
 ##
-## Usa piece.type_id como clave de tipo en el catálogo.
+## Usa (piece.type_id, piece.rank) como clave hacia el catálogo, para que una
+## pieza fusionada (rank más alto) produzca un Defender distinto en combate.
 
 const InventoryPiece = preload("res://Scripts/Gameplay/Inventory/inventory_piece.gd")
 const DefenderCatalog = preload("res://Scripts/Gameplay/Bridge/defender_catalog.gd")
@@ -15,9 +16,9 @@ const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
 const WeaponInstance = preload("res://Scripts/Gameplay/Combat/weapon_instance.gd")
 
 ## Devuelve un Defender nuevo con su propia WeaponInstance, o null si
-## piece.type_id no tiene ningún DefenderData asociado en el catálogo.
+## (piece.type_id, piece.rank) no tiene ningún DefenderData asociado en el catálogo.
 func translate(piece: InventoryPiece, catalog: DefenderCatalog) -> Defender:
-	var defender_data := catalog.get_defender_data(piece.type_id)
+	var defender_data := catalog.get_defender_data(piece.type_id, piece.rank)
 	if defender_data == null:
 		return null
 	var weapon_instance := WeaponInstance.new(defender_data.weapon_data)

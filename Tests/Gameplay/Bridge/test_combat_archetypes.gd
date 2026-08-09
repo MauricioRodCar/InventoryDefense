@@ -30,20 +30,20 @@ func _build_archetype_catalog() -> DefenderCatalog:
 	var finisher_data := DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new()), LowestHealthTargetingPolicy.new())
 	var artillery_data := DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, DoubleShotWeaponBehavior.new()), HighestProgressTargetingPolicy.new())
 	return DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", vanguard_data),
-		DefenderCatalog.Entry.new(&"bar", finisher_data),
-		DefenderCatalog.Entry.new(&"corner", artillery_data),
+		DefenderCatalog.Entry.new(&"square", vanguard_data, 1),
+		DefenderCatalog.Entry.new(&"bar", finisher_data, 1),
+		DefenderCatalog.Entry.new(&"corner", artillery_data, 1),
 	])
 
 func test_el_catalogo_contiene_los_tres_arquetipos(t) -> void:
 	var catalog := _build_archetype_catalog()
 
-	t.assert_true(catalog.get_defender_data(&"square") != null, "square debe estar mapeado a Vanguardia")
-	t.assert_true(catalog.get_defender_data(&"bar") != null, "bar debe estar mapeado a Rematador")
-	t.assert_true(catalog.get_defender_data(&"corner") != null, "corner debe estar mapeado a Artillero")
+	t.assert_true(catalog.get_defender_data(&"square", 1) != null, "square debe estar mapeado a Vanguardia")
+	t.assert_true(catalog.get_defender_data(&"bar", 1) != null, "bar debe estar mapeado a Rematador")
+	t.assert_true(catalog.get_defender_data(&"corner", 1) != null, "corner debe estar mapeado a Artillero")
 
 func test_vanguardia_compone_highest_progress_y_single_shot_con_dano_alto_y_cadencia_lenta(t) -> void:
-	var vanguard_data := _build_archetype_catalog().get_defender_data(&"square")
+	var vanguard_data := _build_archetype_catalog().get_defender_data(&"square", 1)
 
 	t.assert_true(vanguard_data.targeting_policy is HighestProgressTargetingPolicy, "Vanguardia debe apuntar al enemigo más adelantado")
 	t.assert_true(vanguard_data.weapon_data.weapon_behavior is SingleShotWeaponBehavior, "Vanguardia debe atacar con un único impacto")
@@ -51,7 +51,7 @@ func test_vanguardia_compone_highest_progress_y_single_shot_con_dano_alto_y_cade
 	t.assert_eq(vanguard_data.weapon_data.attack_interval, 2.0, "Vanguardia debe tener cadencia lenta")
 
 func test_rematador_compone_lowest_health_y_single_shot_con_dano_medio_y_cadencia_rapida(t) -> void:
-	var finisher_data := _build_archetype_catalog().get_defender_data(&"bar")
+	var finisher_data := _build_archetype_catalog().get_defender_data(&"bar", 1)
 
 	t.assert_true(finisher_data.targeting_policy is LowestHealthTargetingPolicy, "Rematador debe apuntar al enemigo con menos vida")
 	t.assert_true(finisher_data.weapon_data.weapon_behavior is SingleShotWeaponBehavior, "Rematador debe atacar con un único impacto")
@@ -59,7 +59,7 @@ func test_rematador_compone_lowest_health_y_single_shot_con_dano_medio_y_cadenci
 	t.assert_eq(finisher_data.weapon_data.attack_interval, 0.5, "Rematador debe tener cadencia rápida")
 
 func test_artillero_compone_highest_progress_y_double_shot_con_dano_menor(t) -> void:
-	var artillery_data := _build_archetype_catalog().get_defender_data(&"corner")
+	var artillery_data := _build_archetype_catalog().get_defender_data(&"corner", 1)
 
 	t.assert_true(artillery_data.targeting_policy is HighestProgressTargetingPolicy, "Artillero debe apuntar al enemigo más adelantado")
 	t.assert_true(artillery_data.weapon_data.weapon_behavior is DoubleShotWeaponBehavior, "Artillero debe atacar con dos impactos")
