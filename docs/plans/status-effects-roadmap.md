@@ -1,9 +1,11 @@
 # Roadmap: efectos de estado (quemadura/veneno) y resistencias
 
-**Estado: branch 1 completa, mergeada a `main` (308 tests en verde). Branch 2
-(visualización) pendiente.** El dominio ya resuelve headless todo el ciclo de
-vida de un efecto (aplicar, refrescar, tickear, expirar, resistencia), pero
-todavía no hay ningún botón, color ni contenido de sandbox que lo dispare —
+**Estado: completo.** Ambas branches mergeadas a `main` (308 tests en verde).
+Vanguardia aplica quemadura, Rematador aplica veneno; `EnemyView` se tiñe
+mientras el efecto está activo (color base blanco para dar contraste, ver
+commit de seguimiento tras verificación visual real del usuario). El dominio
+resuelve headless todo el ciclo de vida de un efecto (aplicar, refrescar,
+tickear, expirar, resistencia) — ver más abajo para el detalle completo.
 eso es exactamente lo que agrega la branch 2.
 
 ## Contexto y rol
