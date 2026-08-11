@@ -20,6 +20,7 @@ const AreaWeaponBehavior = preload("res://Scripts/Gameplay/Combat/area_weapon_be
 const HighestProgressTargetingPolicy = preload("res://Scripts/Gameplay/Combat/highest_progress_targeting_policy.gd")
 const LowestHealthTargetingPolicy = preload("res://Scripts/Gameplay/Combat/lowest_health_targeting_policy.gd")
 const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
+const StatusEffectData = preload("res://Scripts/Gameplay/Combat/status_effect_data.gd")
 const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
 const DefenderData = preload("res://Scripts/Gameplay/Bridge/defender_data.gd")
 const DefenderCatalog = preload("res://Scripts/Gameplay/Bridge/defender_catalog.gd")
@@ -131,26 +132,31 @@ func _on_draft_reroll_requested() -> void:
 ## arquetipo distinto compuesto únicamente a partir de WeaponData/
 ## WeaponBehavior/TargetingPolicy ya existentes (ninguna subclase nueva de
 ## Defender ni DefenderData): square → Vanguardia (HighestProgress +
-## SingleShot, daño alto y cadencia lenta), bar → Rematador (LowestHealth +
-## SingleShot, daño medio y cadencia rápida), corner → Artillero
-## (HighestProgress + Area, mismo daño base por impacto repartido entre
-## todos los enemigos cercanos al objetivo prioritario). A reemplazar cuando
-## exista una fuente real de configuración de ronda.
+## SingleShot, daño alto y cadencia lenta, aplica quemadura), bar →
+## Rematador (LowestHealth + SingleShot, daño medio y cadencia rápida,
+## aplica veneno), corner → Artillero (HighestProgress + Area, mismo daño
+## base por impacto repartido entre todos los enemigos cercanos al objetivo
+## prioritario, sin efecto de estado — combinar área y efecto de estado en el
+## mismo arquetipo dificultaría distinguir visualmente cuál está pasando, ver
+## roadmap de efectos de estado). A reemplazar cuando exista una fuente real
+## de configuración de ronda.
 ##
 ## Cada arquetipo tiene una entrada por rank (1 a InventoryPiece.MAX_RANK):
 ## fusionar una pieza (ver notas de fusión en Inventario) sube su rank y hace
 ## que produzca un Defender más fuerte en la próxima batalla. Cadencia,
-## WeaponBehavior y TargetingPolicy se mantienen iguales entre ranks del
-## mismo arquetipo, solo el daño escala a mano por rank (valores de sandbox,
-## no una curva de balance final).
+## WeaponBehavior, TargetingPolicy y status_effect se mantienen iguales entre
+## ranks del mismo arquetipo, solo el daño escala a mano por rank (valores de
+## sandbox, no una curva de balance final).
 func _build_sandbox_defender_catalog() -> DefenderCatalog:
+	var burn := StatusEffectData.new(&"burn", 3, 1.0, 4.0)
+	var poison := StatusEffectData.new(&"poison", 2, 1.0, 6.0)
 	return DefenderCatalog.new([
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 12, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 18, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 1),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 2),
-		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0), LowestHealthTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 8, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0, burn), HighestProgressTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 12, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0, burn), HighestProgressTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"square", DefenderData.new(&"vanguard_defender", WeaponData.new(&"vanguard_weapon", 18, 2.0, SingleShotWeaponBehavior.new(), 0.2, 2.0, burn), HighestProgressTargetingPolicy.new()), 3),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 4, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0, poison), LowestHealthTargetingPolicy.new()), 1),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 6, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0, poison), LowestHealthTargetingPolicy.new()), 2),
+		DefenderCatalog.Entry.new(&"bar", DefenderData.new(&"finisher_defender", WeaponData.new(&"finisher_weapon", 9, 0.5, SingleShotWeaponBehavior.new(), 0.2, 2.0, poison), LowestHealthTargetingPolicy.new()), 3),
 		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 2, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 1),
 		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 3, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 2),
 		DefenderCatalog.Entry.new(&"corner", DefenderData.new(&"artillery_defender", WeaponData.new(&"artillery_weapon", 5, 1.0, AreaWeaponBehavior.new(60.0), 0.2, 2.0), HighestProgressTargetingPolicy.new()), 3),

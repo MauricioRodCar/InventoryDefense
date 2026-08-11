@@ -58,7 +58,7 @@ func sync() -> void:
 		return
 	for enemy in _enemy_views:
 		var view: EnemyView = _enemy_views[enemy]
-		view.update_state(_combat_path_view.position_for(enemy.path_progress), _health_ratio(enemy))
+		view.update_state(_combat_path_view.position_for(enemy.path_progress), _health_ratio(enemy), _active_status_effect_ids(enemy))
 
 func _render_initial_state() -> void:
 	for enemy in _simulation.get_enemies():
@@ -111,6 +111,15 @@ func _health_ratio(enemy: Enemy) -> float:
 	if enemy.max_health <= 0:
 		return 0.0
 	return float(enemy.current_health) / float(enemy.max_health)
+
+## Traduce los StatusEffectInstance activos de un enemigo a sus ids, único
+## dato que EnemyView necesita para resolver el color (ver
+## EnemyView._COLOR_BY_STATUS_EFFECT_ID).
+func _active_status_effect_ids(enemy: Enemy) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for status_effect_instance in enemy.get_active_status_effects():
+		ids.append(status_effect_instance.status_effect_data.id)
+	return ids
 
 func _clear_views() -> void:
 	for view in _enemy_views.values():
