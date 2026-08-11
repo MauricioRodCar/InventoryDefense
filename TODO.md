@@ -21,7 +21,7 @@
 [ ] Representación visual / UI de combate
 [ ] Animaciones
 [x] Projectiles
-[ ] Efectos de estado
-[ ] Resistencias
+[x] Efectos de estado
+[x] Resistencias
 [ ] Alcance
 [ ] Recompensas
