@@ -28,6 +28,14 @@ func update_state(world_position: Vector2, health_ratio: float, active_status_ef
 	_active_status_effect_ids = active_status_effect_ids
 	queue_redraw()
 
+## Peso de la mezcla hacia el color de efecto de estado: alto a propósito.
+## Con un lerp al 50% el resultado contra el rojo base queda demasiado cerca
+## del rojo (el violeta de veneno, en particular, se lee como rosado/rojizo,
+## no como violeta) — no se distingue en el juego real aunque matemáticamente
+## "hay mezcla". 0.8 deja dominar el color del efecto sin perder del todo el
+## oscurecimiento por vida.
+const _STATUS_EFFECT_COLOR_WEIGHT: float = 0.8
+
 ## Placeholder simple: si hay varios efectos activos a la vez, se mezcla el
 ## color del primero de la lista que tenga entrada en
 ## _COLOR_BY_STATUS_EFFECT_ID, no una combinación de todos — suficiente para
@@ -38,6 +46,6 @@ func _draw() -> void:
 	var color := Color.RED.lerp(Color.BLACK, 1.0 - _health_ratio)
 	for status_effect_id in _active_status_effect_ids:
 		if _COLOR_BY_STATUS_EFFECT_ID.has(status_effect_id):
-			color = color.lerp(_COLOR_BY_STATUS_EFFECT_ID[status_effect_id], 0.5)
+			color = color.lerp(_COLOR_BY_STATUS_EFFECT_ID[status_effect_id], _STATUS_EFFECT_COLOR_WEIGHT)
 			break
 	draw_circle(Vector2.ZERO, _RADIUS, color)
