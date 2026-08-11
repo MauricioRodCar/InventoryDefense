@@ -9,11 +9,14 @@ extends RefCounted
 ## único emisor de señales de combate. is_battle_over() es la única autoridad
 ## sobre si la batalla terminó (Wave agotada y roster de enemigos vacío).
 ##
-## No sabe nada de InventoryGrid, UI, animaciones, proyectiles, efectos de
-## estado, resistencias, alcance ni recompensas: esta iteración asume que
-## defensores ya existen y se añaden desde fuera vía add_defender. Los
-## enemigos pueden añadirse manualmente vía add_enemy (uso de pruebas) o
-## poblarse automáticamente a partir de una Wave opcional.
+## No sabe nada de InventoryGrid, UI, animaciones, proyectiles, alcance ni
+## recompensas: esta iteración asume que defensores ya existen y se añaden
+## desde fuera vía add_defender. Los enemigos pueden añadirse manualmente
+## vía add_enemy (uso de pruebas) o poblarse automáticamente a partir de una
+## Wave opcional. Sí conoce efectos de estado: aplicarlos tras un impacto y
+## tickearlos en cada advance() es responsabilidad suya, mismo motivo que ya
+## aplica el daño directo y tickea cooldowns (único punto de mutación del
+## dominio de combate).
 
 const CombatPath = preload("res://Scripts/Gameplay/Combat/combat_path.gd")
 const Enemy = preload("res://Scripts/Gameplay/Combat/enemy.gd")
@@ -27,6 +30,7 @@ signal enemy_defeated(enemy: Enemy)
 signal defender_attacked(defender: Defender, target: Enemy, damage: int, is_critical: bool)
 signal enemy_spawned(enemy: Enemy)
 signal wave_completed
+signal status_effect_ticked(enemy: Enemy, status_effect_id: StringName, damage: int)
 
 var _path: CombatPath
 var _wave: Wave
@@ -65,14 +69,17 @@ func is_battle_over() -> bool:
 
 ## Avanza la simulación un paso determinista: mueve enemigos, resuelve los
 ## que llegaron al final del camino, spawnea los enemigos que correspondan
-## según la Wave, tickea cooldowns, resuelve ataques y resuelve enemigos
-## derrotados. Único método de todo el dominio de combate que termina
+## según la Wave, tickea cooldowns, resuelve ataques (daño directo, que
+## puede matar), tickea efectos de estado (daño repetido, que también puede
+## matar) y recién al final resuelve enemigos derrotados por cualquiera de
+## las dos causas. Único método de todo el dominio de combate que termina
 ## aplicando mutaciones sobre Enemy/Defender/WeaponInstance.
 func advance(delta: float) -> void:
 	_apply_movement(delta)
 	_resolve_reached_end()
 	_resolve_spawns(delta)
 	_resolve_attacks(delta)
+	_resolve_status_effects(delta)
 	_resolve_defeated()
 
 func _apply_movement(delta: float) -> void:
@@ -96,7 +103,7 @@ func _resolve_spawns(delta: float) -> void:
 		return
 	var result := _wave.advance(delta)
 	for enemy_data in result.spawned_entries:
-		var enemy := Enemy.new(enemy_data.id, enemy_data.max_health, enemy_data.speed)
+		var enemy := Enemy.new(enemy_data.id, enemy_data.max_health, enemy_data.speed, enemy_data.status_effect_resistance)
 		add_enemy(enemy)
 		enemy_spawned.emit(enemy)
 	if result.finished and not _wave_finished:
@@ -111,7 +118,21 @@ func _resolve_attacks(delta: float) -> void:
 	for result in _attack_phase.advance(_defenders, _enemies, _rng):
 		result.target._take_damage(result.damage)
 		result.defender.weapon_instance._reset_cooldown()
+		if result.status_effect != null:
+			result.target._apply_status_effect(result.status_effect)
 		defender_attacked.emit(result.defender, result.target, result.damage, result.is_critical)
+
+## Tickea los efectos de estado activos de cada enemigo vivo, aplica el daño
+## de cada tick producido y emite status_effect_ticked. Ocurre después del
+## daño directo (ver advance()): el daño repetido de un efecto de estado
+## puede derrotar a un enemigo igual que un impacto directo.
+func _resolve_status_effects(delta: float) -> void:
+	for enemy in _enemies:
+		if not enemy.is_alive():
+			continue
+		for tick in enemy._tick_status_effects(delta):
+			enemy._take_damage(tick.damage)
+			status_effect_ticked.emit(enemy, tick.status_effect_id, tick.damage)
 
 func _resolve_defeated() -> void:
 	var defeated: Array[Enemy] = []

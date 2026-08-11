@@ -11,6 +11,7 @@ const EnemyData = preload("res://Scripts/Gameplay/Combat/enemy_data.gd")
 const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
 const Wave = preload("res://Scripts/Gameplay/Combat/wave.gd")
 const CombatSimulation = preload("res://Scripts/Gameplay/Combat/combat_simulation.gd")
+const StatusEffectData = preload("res://Scripts/Gameplay/Combat/status_effect_data.gd")
 
 func test_advance_mueve_a_los_enemigos_vivos(t) -> void:
 	var simulation := CombatSimulation.new(CombatPath.new(100.0))
@@ -178,3 +179,53 @@ func test_is_battle_over_solo_cuando_la_wave_termino_y_no_quedan_enemigos(t) -> 
 	enemy._take_damage(7)
 	simulation.advance(0.1)
 	t.assert_true(simulation.is_battle_over(), "wave agotada y sin enemigos vivos: la batalla debe darse por terminada")
+
+func test_un_defensor_con_status_effect_lo_aplica_al_enemigo_objetivo_tras_impactar(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+	var enemy := Enemy.new(&"e1", 100, 0.0)
+	var burn := StatusEffectData.new(&"burn", 3, 1.0, 4.0)
+	var weapon_data := WeaponData.new(&"sword", 4, 1.0, null, 0.0, 2.0, burn)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	simulation.add_enemy(enemy)
+	simulation.add_defender(defender)
+
+	simulation.advance(0.1)
+
+	var active := enemy.get_active_status_effects()
+	t.assert_eq(active.size(), 1, "un impacto de un arma con status_effect configurado debe aplicar el efecto al objetivo")
+	t.assert_eq(active[0].status_effect_data.id, &"burn", "el efecto aplicado debe ser el configurado en el WeaponData del defensor")
+
+func test_advances_sucesivos_tickean_el_efecto_y_emiten_status_effect_ticked_en_el_momento_esperado(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+	var enemy := Enemy.new(&"e1", 100, 0.0)
+	var burn := StatusEffectData.new(&"burn", 3, 1.0, 4.0)
+	var weapon_data := WeaponData.new(&"sword", 4, 100.0, null, 0.0, 2.0, burn)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	simulation.add_enemy(enemy)
+	simulation.add_defender(defender)
+	var tick_events: Array = []
+	simulation.status_effect_ticked.connect(func(e, id, damage): tick_events.append([e, id, damage]))
+
+	simulation.advance(0.1)
+	t.assert_eq(tick_events.size(), 0, "el efecto recién aplicado no debe tickear todavía en el mismo advance en el que se aplicó")
+
+	simulation.advance(0.9)
+	t.assert_eq(tick_events, [[enemy, &"burn", 3]], "status_effect_ticked debe emitirse con el enemigo, el id del efecto y el daño del tick al cumplirse tick_interval")
+	t.assert_eq(enemy.current_health, 100 - 4 - 3, "el enemigo debe perder tanto el daño directo del impacto como el daño acumulado del tick")
+
+func test_el_dano_de_un_tick_de_efecto_puede_derrotar_a_un_enemigo(t) -> void:
+	var simulation := CombatSimulation.new(CombatPath.new(100.0))
+	var enemy := Enemy.new(&"e1", 5, 0.0)
+	var burn := StatusEffectData.new(&"burn", 3, 1.0, 4.0)
+	var weapon_data := WeaponData.new(&"sword", 2, 100.0, null, 0.0, 2.0, burn)
+	var defender := Defender.new(&"d1", WeaponInstance.new(weapon_data))
+	simulation.add_enemy(enemy)
+	simulation.add_defender(defender)
+	var defeated_events: Array = []
+	simulation.enemy_defeated.connect(func(e): defeated_events.append(e))
+
+	simulation.advance(0.1)
+	simulation.advance(0.9)
+
+	t.assert_eq(defeated_events, [enemy], "el daño de un tick de efecto de estado debe poder derrotar a un enemigo, igual que el daño directo")
+	t.assert_eq(simulation.get_enemies().size(), 0, "un enemigo derrotado por un tick de efecto de estado debe salir del roster")

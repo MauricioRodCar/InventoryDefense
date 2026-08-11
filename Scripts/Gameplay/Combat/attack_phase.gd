@@ -28,22 +28,27 @@ extends RefCounted
 
 const Enemy = preload("res://Scripts/Gameplay/Combat/enemy.gd")
 const Defender = preload("res://Scripts/Gameplay/Combat/defender.gd")
+const StatusEffectData = preload("res://Scripts/Gameplay/Combat/status_effect_data.gd")
 
 ## Resultado de un ataque: qué defensor ataca a qué enemigo, con cuánto
-## daño y si fue crítico. No es una mutación en sí, solo la intención
-## calculada.
+## daño, si fue crítico y qué efecto de estado debería aplicarse (si el arma
+## tiene uno configurado). No es una mutación en sí, solo la intención
+## calculada: AttackPhase no aplica el efecto de estado, solo lo transporta,
+## igual que ya transporta damage/is_critical.
 class Result:
 	extends RefCounted
 	var defender: Defender
 	var target: Enemy
 	var damage: int
 	var is_critical: bool
+	var status_effect: StatusEffectData
 
-	func _init(p_defender: Defender, p_target: Enemy, p_damage: int, p_is_critical: bool = false) -> void:
+	func _init(p_defender: Defender, p_target: Enemy, p_damage: int, p_is_critical: bool = false, p_status_effect: StatusEffectData = null) -> void:
 		defender = p_defender
 		target = p_target
 		damage = p_damage
 		is_critical = p_is_critical
+		status_effect = p_status_effect
 
 ## Para cada defensor listo, resuelve el objetivo prioritario de su propia
 ## TargetingPolicy compuesta y delega en su WeaponBehavior compuesto qué
@@ -67,5 +72,5 @@ func advance(defenders: Array[Defender], enemies: Array[Enemy], rng: RandomNumbe
 		for hit in hits:
 			var is_critical := rng.randf() < weapon_data.crit_chance
 			var final_damage := roundi(hit.damage * weapon_data.crit_multiplier) if is_critical else hit.damage
-			results.append(Result.new(defender, hit.target, final_damage, is_critical))
+			results.append(Result.new(defender, hit.target, final_damage, is_critical, weapon_data.status_effect))
 	return results
