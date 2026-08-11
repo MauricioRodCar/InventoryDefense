@@ -1,5 +1,11 @@
 # Roadmap: efectos de estado (quemadura/veneno) y resistencias
 
+**Estado: branch 1 completa, mergeada a `main` (308 tests en verde). Branch 2
+(visualización) pendiente.** El dominio ya resuelve headless todo el ciclo de
+vida de un efecto (aplicar, refrescar, tickear, expirar, resistencia), pero
+todavía no hay ningún botón, color ni contenido de sandbox que lo dispare —
+eso es exactamente lo que agrega la branch 2.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como
