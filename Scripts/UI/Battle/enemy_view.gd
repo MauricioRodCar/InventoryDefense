@@ -7,6 +7,12 @@ extends Node2D
 
 const _RADIUS: float = 10.0
 
+## Color base blanco (oscurecido hacia negro según la vida restante): da el
+## mayor contraste posible contra los colores de efecto de estado de abajo.
+## Antes era rojo, pero un rojo oscurecido por vida ya se acercaba tanto a
+## los colores de efecto que la mezcla no se distinguía en el juego real.
+const _BASE_COLOR := Color.WHITE
+
 ## Color por efecto de estado, resuelto acá y no en el dominio: mismo
 ## criterio que InventoryPiece.type_id (el dominio expone un id, la vista
 ## mapea ese id a un color localmente). StatusEffectData no lleva ningún
@@ -28,12 +34,10 @@ func update_state(world_position: Vector2, health_ratio: float, active_status_ef
 	_active_status_effect_ids = active_status_effect_ids
 	queue_redraw()
 
-## Peso de la mezcla hacia el color de efecto de estado: alto a propósito.
-## Con un lerp al 50% el resultado contra el rojo base queda demasiado cerca
-## del rojo (el violeta de veneno, en particular, se lee como rosado/rojizo,
-## no como violeta) — no se distingue en el juego real aunque matemáticamente
-## "hay mezcla". 0.8 deja dominar el color del efecto sin perder del todo el
-## oscurecimiento por vida.
+## Peso de la mezcla hacia el color de efecto de estado: alto a propósito,
+## para que domine sobre el color base sin perder del todo el oscurecimiento
+## por vida. Se subió de 0.5 a 0.8 porque una mezcla a partes iguales no se
+## distinguía en el juego real.
 const _STATUS_EFFECT_COLOR_WEIGHT: float = 0.8
 
 ## Placeholder simple: si hay varios efectos activos a la vez, se mezcla el
@@ -43,7 +47,7 @@ const _STATUS_EFFECT_COLOR_WEIGHT: float = 0.8
 ## por qué Artillero se quedó sin efecto de estado para no tener que resolver
 ## esto con más de uno a la vez sobre el mismo enemigo).
 func _draw() -> void:
-	var color := Color.RED.lerp(Color.BLACK, 1.0 - _health_ratio)
+	var color := _BASE_COLOR.lerp(Color.BLACK, 1.0 - _health_ratio)
 	for status_effect_id in _active_status_effect_ids:
 		if _COLOR_BY_STATUS_EFFECT_ID.has(status_effect_id):
 			color = color.lerp(_COLOR_BY_STATUS_EFFECT_ID[status_effect_id], _STATUS_EFFECT_COLOR_WEIGHT)
