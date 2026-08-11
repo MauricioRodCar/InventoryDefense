@@ -273,6 +273,23 @@ Incluye:
 - `main.gd` construye un `DraftPool` de sandbox (`_build_sandbox_draft_pool()`) con los mismos 3 tipos de pieza que ya ofrece `InventoryPieceSourceSandbox` a peso `5.0` cada uno, más dos `GridExpansionDraftOption` a peso `1.0` cada una — proporción ~5:1 piezas:expansión, la "probabilidad menor" de expansión definida en el objetivo de producto. Mismo espíritu que el resto de la configuración de sandbox de `main.gd`: mínimo necesario para esta vertical slice, a reemplazar cuando exista una fuente real de configuración de ronda.
 - `main.gd` reemplazó su única `WaveData` de sandbox por un `_wave_schedule: Array[WaveData]` corto (dos waves) y un `_current_wave_index`, porque el draft necesita una "siguiente wave" real a la que llevar al jugador. `BattleRunner.start()` no tenía ningún guard de estado propio, así que todo el loop (arrancar la wave actual, detectar `FINISHED`, armar un `Draft` nuevo, y volver a habilitar el disparador de Enter recién cuando el jugador elige una opción) vive enteramente en `main.gd` vía el nuevo campo `_ready_for_next_wave`, sin tocar `BattleRunner` ni `CombatSimulation`. Deliberadamente no es un `RunController` ni progresión persistente — sigue fuera de alcance (ver "Próximo objetivo").
 
+### Menú principal
+
+Estado:
+✅ `MainMenu` implementada: pantalla de inicio real (fondo + Iniciar/Configuración/Galería/Salir) en vez de arrancar directo en el gameplay.
+
+Incluye:
+
+- `MainMenu` (`Scripts/Menu/main_menu.gd` + `scenes/menu/MainMenu.tscn`; composition root de su propia escena)
+- Sin tests headless, mismo criterio que el resto de la capa de escenas sin dominio propio (`Scripts/Main/main.gd`)
+
+#### Notas de diseño — Menú principal
+
+- `Scripts/Menu/` es una carpeta nueva de nivel superior, al mismo nivel que `Main/`/`Gameplay/`/`UI/`, no una vista más dentro de `Scripts/UI/`: `MainMenu` es el composition root de su propia escena (como `Scripts/Main/` lo es de la suya), no una vista reactiva a un dominio como todo lo que vive en `Scripts/UI/`. No conoce nada del dominio del juego (`InventoryGrid`, `CombatSimulation`, etc.) ni de `Scripts/Main/main.gd`: solo sabe que existe un archivo de escena de gameplay al que navegar vía `get_tree().change_scene_to_file()` — misma independencia que ya mantienen entre sí Inventory/Combat/Economy/Draft.
+- Configuración y Galería quedan como botones deshabilitados (`disabled = true`, sin handler conectado) en vez de navegar a una pantalla vacía: no existe todavía ningún sistema de configuración ni de galería que mostrar detrás de esos botones, y una pantalla sin contenido real sería código muerto disfrazado de feature. Un botón deshabilitado y visible comunica que esas opciones existirán sin anticipar ningún diseño de esos sistemas.
+- `project.godot` cambia `run/main_scene` de `uid://dmmvrg6midvd5` a la ruta explícita `res://scenes/menu/MainMenu.tscn`: un `uid` de un `.tscn` nuevo recién se genera cuando el editor lo abre/importa por primera vez, no se puede conocer de antemano al escribir el archivo a mano, y `res://` es igual de válido para `run/main_scene`.
+- Ningún botón de "volver al menú" dentro de la escena de gameplay: hoy no existe ninguno y agregarlo tocaría `Scripts/Main/main.gd`, otro sistema — fuera de alcance deliberado de esta branch.
+
 ### Próximo objetivo
 
 Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada más elaboradas, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
