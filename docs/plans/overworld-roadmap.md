@@ -314,7 +314,203 @@ mismo criterio que el resto de la capa de escenas/composition roots.
   por el overworld) debe seguir funcionando con el calendario de sandbox de
   siempre (confirma que el *fallback* funciona).
 
-## Fases 3-5 (sin detallar aún)
+## Fase 3 — `feature/overworld-permanent-currency` (lista para implementar una vez la fase 2 esté mergeada)
+
+### Objetivo de esta fase
+
+Completar un nivel otorga una segunda moneda — permanente, distinta de
+`PlayerEconomy` (la de escenario) — visible en el overworld. Todavía no se
+puede gastar en nada (eso es la fase 4, deliberadamente fuera de alcance
+acá): esta fase solo prueba que la moneda se gana y se ve.
+
+### Diseño
+
+**Se introduce `LevelData` ahora, no antes.** La fase 2 dejó documentado
+explícitamente el criterio: envolver el calendario de waves en una clase
+recién cuando un consumidor real necesite más de un dato por nivel. Esta
+fase es exactamente ese momento — un nivel ahora necesita *dos* datos
+(calendario de waves + recompensa de moneda permanente), así que
+`LevelSelection.selected_wave_schedule: Array[WaveData]` deja de alcanzar.
+
+**`Scripts/Gameplay/Levels/level_data.gd`** (nuevo — primera clase de una
+carpeta de dominio nueva, `Levels/`, al mismo nivel que `Combat/`/
+`Economy/`/`Draft/`/`Inventory/` dentro de `Scripts/Gameplay/`):
+
+```
+class_name LevelData
+extends Resource
+## Definición pura de un nivel jugable: su calendario de waves y cuánta
+## moneda permanente otorga al completarse. No lleva estado de ejecución.
+## Mismo rol que WaveData/EnemyData: definición compartible, sin estado.
+
+const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
+
+@export var wave_schedule: Array[WaveData] = []
+@export var permanent_currency_reward: int = 0
+
+func _init(p_wave_schedule: Array[WaveData] = [], p_permanent_currency_reward: int = 0) -> void:
+	wave_schedule = p_wave_schedule
+	permanent_currency_reward = p_permanent_currency_reward
+```
+
+**`Scripts/Gameplay/Economy/permanent_currency.gd`** (nuevo). Mismo rol y
+casi la misma forma que `PlayerEconomy` (única autoridad, invariante nunca
+negativo, señal de cambio) — pero **deliberadamente una clase separada, no
+una subclase ni una composición de `PlayerEconomy`**: son dos monedas con
+propósito distinto (una de escenario, se resetea cada partida; esta
+sobrevive entre niveles y partidas) que no deben acoplarse entre sí,
+decisión de producto ya registrada en el roadmap del draft de fin de wave.
+Solo `get_amount()`/`add_amount()` por ahora — **sin** `spend_amount()` ni
+`can_afford()` todavía: nada los necesita en esta fase (mismo criterio que
+ya se usó con `PlayerEconomy.spend_gold`, agregado recién cuando el draft
+tuvo un gasto real que resolver, no antes).
+
+```
+class_name PermanentCurrency
+extends RefCounted
+
+signal amount_changed(new_amount: int)
+
+var _amount: int = 0
+
+func get_amount() -> int:
+	return _amount
+
+## amount debe ser positivo: quien llama es responsable de no invocar esto
+## con una recompensa nula o negativa, mismo criterio que PlayerEconomy.add_gold.
+func add_amount(amount: int) -> void:
+	assert(amount > 0, "add_amount requiere un amount positivo")
+	_amount += amount
+	amount_changed.emit(_amount)
+```
+
+**`Scripts/Overworld/permanent_progress.gd`** (nuevo, segundo autoload del
+proyecto):
+
+```
+extends Node
+## Autoload: retiene la PermanentCurrency del jugador durante toda la
+## sesión (sobrevive a cada cambio de escena, a diferencia de PlayerEconomy,
+## que main.gd reconstruye en cada partida). Puramente en memoria — sin
+## persistencia real todavía (ver fase 5 de este roadmap).
+
+const PermanentCurrency = preload("res://Scripts/Gameplay/Economy/permanent_currency.gd")
+
+var currency := PermanentCurrency.new()
+```
+
+Registrar en `project.godot`, junto a `LevelSelection` (la sección
+`[autoload]` ya existe desde la fase 2):
+
+```
+LevelSelection="*res://Scripts/Overworld/level_selection.gd"
+PermanentProgress="*res://Scripts/Overworld/permanent_progress.gd"
+```
+
+**`Scripts/Overworld/level_selection.gd`**: cambia su único campo de
+`selected_wave_schedule: Array[WaveData]` a `selected_level: LevelData =
+null`.
+
+**`Scripts/Overworld/overworld.gd`**:
+- Los tres `_build_levelN_wave_schedule() -> Array[WaveData]` pasan a
+  `_build_levelN() -> LevelData`, devolviendo `LevelData.new(wave_schedule,
+  reward)` en vez del array suelto. Recompensas de sandbox sugeridas
+  (placeholder, escalan con la dificultad ya establecida en la fase 2):
+  Nivel 1 → 10, Nivel 2 → 20, Nivel 3 → 30.
+- `_on_level_pressed(level: LevelData)`: asigna
+  `LevelSelection.selected_level = level` (en vez de `.selected_wave_schedule`)
+  antes de navegar.
+- Nuevo `Label` de contador (`CurrencyLabel`): en `_ready()`, conectar
+  `PermanentProgress.currency.amount_changed` y pintar el valor inicial
+  explícitamente (mismo criterio ya establecido para `GoldCounterView`:
+  pintar el estado inicial en el momento de conectar, no depender de que se
+  emita una señal durante la construcción del objeto).
+
+**`Scripts/Main/main.gd`**:
+- En `_ready()`, donde hoy se arma `_wave_schedule` directo, pasa por
+  `LevelData`: `var level: LevelData = LevelSelection.selected_level if
+  LevelSelection.selected_level != null else _build_sandbox_level()`, y
+  `_wave_schedule = level.wave_schedule`. `_build_sandbox_wave_schedule()`
+  se renombra a `_build_sandbox_level() -> LevelData`, devolviendo el mismo
+  calendario de siempre envuelto en un `LevelData` con
+  `permanent_currency_reward = 0` (nunca se usa: la recompensa solo se
+  acredita cuando `LevelSelection.selected_level` es real, ver abajo, así
+  que este valor de relleno es inerte a propósito).
+- En `_on_battle_runner_state_changed()`, en la misma rama donde ya se pone
+  `_all_waves_finished = true`: si `LevelSelection.selected_level != null`
+  y `LevelSelection.selected_level.permanent_currency_reward > 0`, llamar
+  `PermanentProgress.currency.add_amount(LevelSelection.selected_level.permanent_currency_reward)`
+  — mismo patrón de guarda que ya usa `BattleRunner._on_enemy_defeated` con
+  `EnemyRewardCatalog` (nunca invocar `add_amount`/`add_gold` con un valor
+  no positivo). El `if != null` es necesario porque correr `main.tscn`
+  directo (fallback de la fase 2) no debe otorgar ninguna moneda permanente
+  real.
+
+### Cambios exactos por archivo
+
+- **Nuevo** `Scripts/Gameplay/Levels/level_data.gd` (código exacto arriba).
+- **Nuevo** `Scripts/Gameplay/Economy/permanent_currency.gd` (código exacto
+  arriba).
+- **Nuevo** `Scripts/Overworld/permanent_progress.gd` (código exacto
+  arriba).
+- **`project.godot`**: agregar la línea de `PermanentProgress` en
+  `[autoload]`.
+- **`Scripts/Overworld/level_selection.gd`**: cambiar el tipo del campo.
+- **`Scripts/Overworld/overworld.gd`**: los cambios descritos arriba
+  (`LevelData` en vez de `Array[WaveData]` suelto, recompensas por nivel,
+  `CurrencyLabel`).
+- **`scenes/overworld/Overworld.tscn`**: agregar el nodo `CurrencyLabel`
+  (`Label`).
+- **`Scripts/Main/main.gd`**: los cambios descritos arriba
+  (`_build_sandbox_level()`, acreditar la recompensa al completar).
+
+### Call sites verificados
+
+Confirmado por grep antes de escribir esta spec: `selected_wave_schedule`
+solo aparece en `Scripts/Main/main.gd`, `Scripts/Overworld/overworld.gd` y
+`Scripts/Overworld/level_selection.gd` (más las menciones en `README.md`,
+que esta misma spec ya pide actualizar). `_build_sandbox_wave_schedule()`
+solo se llama desde dentro de `main.gd`. Ningún test referencia ninguno de
+los dos.
+
+### Tests nuevos a agregar
+
+1. **`Tests/Gameplay/Levels/test_level_data.gd`** (nuevo, registrar en
+   `Tests/test_runner.gd`): sin indicar valores, `wave_schedule` queda
+   vacío y `permanent_currency_reward` en `0`; indicados explícitamente, se
+   guardan tal cual.
+2. **`Tests/Gameplay/Economy/test_permanent_currency.gd`** (nuevo,
+   registrar en `Tests/test_runner.gd`; mismo estilo que
+   `test_player_economy.gd`, pero solo los casos de `add_amount` — no
+   escribir ningún test de `spend_amount`/`can_afford`, no existen todavía):
+   arranca en `0`; `add_amount` acumula; `add_amount` emite `amount_changed`
+   con el nuevo total.
+
+### Documentación a actualizar
+
+- `README.md`: nueva sección `### Levels` (o ampliar `### Overworld`, lo
+  que se sienta más natural al escribirlo) documentando `LevelData` y por
+  qué se introduce recién ahora. Ampliar las notas de Overworld con
+  `PermanentCurrency`/`PermanentProgress`, por qué es una clase separada de
+  `PlayerEconomy` y no una extensión, y el nuevo `CurrencyLabel`.
+  Actualizar toda mención existente a `selected_wave_schedule`/
+  `_build_sandbox_wave_schedule()` para reflejar los nombres nuevos.
+- `TODO.md`: no requiere cambios.
+
+### Definición de hecho
+
+- Todos los tests existentes siguen pasando sin modificarse.
+- Los tests nuevos de esta branch pasan.
+- `README.md` actualizado.
+- Commit único.
+- Verificación manual en el editor de Godot: completar cualquiera de los
+  tres niveles y confirmar que, al volver al overworld (Escape), el
+  contador de moneda permanente subió en la cantidad correcta para ese
+  nivel (10/20/30 según cuál se jugó). Correr `main.tscn` directo no debe
+  acreditar ninguna moneda (es el camino de *fallback*, sin nivel real
+  seleccionado).
+
+## Fases 4-5 (sin detallar aún)
 
 Se especifican recién cuando le toque el turno a cada una, ya con el
 resultado real de la fase anterior mergeado — diseñar más allá de eso ahora
