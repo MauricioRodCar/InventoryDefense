@@ -163,7 +163,13 @@ verificación es manual, en el editor de Godot.
 
 ---
 
-## Fase 2 — `feature/overworld-level-content` (lista para implementar una vez la fase 1 esté mergeada)
+## Fase 2 — `feature/overworld-level-content` (completa)
+
+**Estado: completa.** Mergeada a `main` (308 tests en verde). Cada nodo del
+overworld carga su propio calendario de waves vía `LevelSelection` (primer
+autoload del proyecto); confirmado visualmente por el usuario que los tres
+niveles se sienten distintos y que `main.tscn` directo sigue funcionando.
+
 
 ### Objetivo de esta fase
 
