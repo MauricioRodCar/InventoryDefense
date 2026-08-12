@@ -41,6 +41,11 @@ persistencia real hasta la fase 5 (construir el modelo en memoria primero,
 sobre algo que ya funciona, en vez de diseñar el guardado sin saber todavía
 qué forma va a tener el progreso).
 
+**Fase 1: completa.** Mergeada a `main` (308 tests en verde). Menú → Overworld
+→ Batalla → volver (Escape) funcionando, confirmado visualmente por el
+usuario. Los tres nodos de nivel siguen siendo idénticos — eso es
+exactamente lo que resuelve la fase 2.
+
 ---
 
 ## Fase 1 — `feature/overworld-navigation` (lista para implementar)
