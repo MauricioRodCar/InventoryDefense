@@ -1,5 +1,10 @@
 # Spec: menú principal
 
+**Estado: completo.** Mergeado a `main` (308 tests en verde). El juego
+arranca en `MainMenu` en vez de directo en gameplay; Iniciar/Salir
+funcionales, Configuración/Galería deshabilitados a propósito. Confirmado
+visualmente por el usuario.
+
 ## Contexto y rol
 
 Este documento lo escribe la instancia de Claude que actúa como
