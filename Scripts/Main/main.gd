@@ -70,7 +70,7 @@ func _ready() -> void:
 
 	_combat_path = CombatPath.new(400.0)
 	_defender_catalog = _build_sandbox_defender_catalog()
-	_wave_schedule = _build_sandbox_wave_schedule()
+	_wave_schedule = LevelSelection.selected_wave_schedule if not LevelSelection.selected_wave_schedule.is_empty() else _build_sandbox_wave_schedule()
 	_player_economy = PlayerEconomy.new()
 	_enemy_reward_catalog = _build_sandbox_enemy_reward_catalog()
 	_draft_pool = _build_sandbox_draft_pool()
