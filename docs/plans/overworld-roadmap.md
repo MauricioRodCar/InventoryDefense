@@ -163,7 +163,152 @@ verificación es manual, en el editor de Godot.
 
 ---
 
-## Fases 2-5 (sin detallar aún)
+## Fase 2 — `feature/overworld-level-content` (lista para implementar una vez la fase 1 esté mergeada)
+
+### Objetivo de esta fase
+
+Que los tres nodos del overworld dejen de ser idénticos: cada uno carga una
+`WaveData` de la wave propia (más waves, más enemigos por wave, progresión
+de dificultad simple) en vez del único calendario hardcodeado que hoy usa
+`Scripts/Main/main.gd` sin importar qué botón se apretó.
+
+### Diseño
+
+**El problema real de esta fase, antes que nada: cómo pasar datos entre
+escenas.** `get_tree().change_scene_to_file()` no acepta parámetros — no hay
+forma de "pasarle argumentos" a la escena de gameplay al navegar hacia
+ella. Godot resuelve esto con un **autoload** (un singleton global,
+declarado en `project.godot`, accesible desde cualquier escena sin
+`preload`/referencia explícita). Este proyecto no tiene ninguno todavía —
+va a ser el primero. Se lo mantiene deliberadamente mínimo (un solo campo)
+para no convertirlo en un cajón de basura de estado global: su única
+responsabilidad es sobrevivir al cambio de escena con el dato que
+`Overworld` necesita entregarle a `main.gd`.
+
+**`Scripts/Overworld/level_selection.gd`** (nuevo, autoload):
+
+```
+extends Node
+## Único autoload del proyecto: retiene la WaveData elegida en Overworld
+## para que main.gd la lea al construir la partida. Sin esto no hay forma de
+## pasar datos entre escenas con change_scene_to_file(). Puramente en
+## memoria, se resetea en cada arranque de la aplicación — no hay
+## persistencia todavía (ver fase 5 de este roadmap).
+
+const WaveData = preload("res://Scripts/Gameplay/Combat/wave_data.gd")
+
+var selected_wave_schedule: Array[WaveData] = []
+```
+
+Registrar en `project.godot` (sección `[autoload]`, que no existe todavía —
+agregarla):
+
+```
+[autoload]
+
+LevelSelection="*res://Scripts/Overworld/level_selection.gd"
+```
+
+**Por qué no se creó una clase `LevelData`** envolviendo la `Array[WaveData]`
+(el patrón Definition que usa el resto del proyecto para "definición pura
+compartible", p. ej. `WaveData`/`EnemyData`): esta fase no necesita nada más
+que un calendario de waves por nodo — ni nombre de nivel, ni id, ni estado
+de bloqueado, nada de eso tiene un consumidor todavía. Envolver un único
+campo en una clase nueva sería una abstracción sin ningún uso real todavía
+(la clase existiría solo para poder existir). Si una fase futura necesita
+más datos por nivel (nombre para mostrar, id para trackear cuál está
+desbloqueado, recompensa propia), ahí sí se justifica introducir esa clase
+— no antes.
+
+**`Overworld`**: cada botón de nivel deja de compartir el mismo handler sin
+argumentos. Construye su propia `Array[WaveData]` por nivel (mismo estilo
+que ya usa `main.gd` para su calendario de sandbox: `EnemyData` +
+`WaveData.SpawnEntry`) y la liga al handler vía `.bind()`:
+
+```
+func _ready() -> void:
+	_level_1_button.pressed.connect(_on_level_pressed.bind(_build_level_1_wave_schedule()))
+	_level_2_button.pressed.connect(_on_level_pressed.bind(_build_level_2_wave_schedule()))
+	_level_3_button.pressed.connect(_on_level_pressed.bind(_build_level_3_wave_schedule()))
+	_back_button.pressed.connect(_on_back_pressed)
+
+func _on_level_pressed(wave_schedule: Array[WaveData]) -> void:
+	LevelSelection.selected_wave_schedule = wave_schedule
+	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+```
+
+Calendarios de sandbox sugeridos (valores de placeholder, ajustables — la
+progresión de dificultad es lo único que importa demostrar acá):
+- Nivel 1: igual al calendario actual de `main.gd`, sin cambios (2 waves: 2
+  goblins, 3 goblins).
+- Nivel 2: 3 waves, 3/4/5 goblins.
+- Nivel 3: 3 waves, 5/6/7 goblins.
+
+Cada `EnemyData.new(&"goblin", 60, 20.0)` se puede seguir usando igual en
+los tres — no hace falta un tipo de enemigo nuevo para esta fase, solo más
+cantidad.
+
+**`Scripts/Main/main.gd`**: en `_ready()`, donde hoy asigna `_wave_schedule =
+_build_sandbox_wave_schedule()` incondicionalmente, cambiar a:
+
+```
+_wave_schedule = LevelSelection.selected_wave_schedule if not LevelSelection.selected_wave_schedule.is_empty() else _build_sandbox_wave_schedule()
+```
+
+Por qué el *fallback*: si alguien corre `main.tscn` directo (F6 en el
+editor, sin pasar por `Overworld`), `LevelSelection.selected_wave_schedule`
+queda vacío (nunca se seteó) — sin este fallback, la partida arrancaría sin
+ningún enemigo. `_build_sandbox_wave_schedule()` no se borra: sigue siendo
+el calendario por defecto cuando no hay nivel seleccionado, mismo criterio
+defensivo que ya usa el resto del proyecto (p. ej.
+`DefenderCatalog.get_defender_data()` devuelve `null` en vez de romper ante
+una clave sin mapear).
+
+### Cambios exactos por archivo
+
+- **Nuevo** `Scripts/Overworld/level_selection.gd` (código exacto arriba).
+- **`project.godot`**: agregar la sección `[autoload]` (código exacto arriba).
+- **`Scripts/Overworld/overworld.gd`**: reemplazar los tres `connect`
+  idénticos por los `.bind()` con calendario propio; agregar los tres
+  métodos `_build_levelN_wave_schedule()`; cambiar `_on_level_pressed` para
+  recibir el calendario y setearlo en `LevelSelection` antes de navegar.
+- **`Scripts/Main/main.gd`**: el cambio puntual en `_ready()` descrito
+  arriba. `_build_sandbox_wave_schedule()` no cambia.
+
+### Call sites verificados
+
+Antes de tocar `Scripts/Overworld/overworld.gd`, releerlo completo (ya
+existe, de la fase 1) para confirmar que `_on_level_pressed` sigue siendo un
+único método compartido sin parámetros — si cambió, parar y preguntar.
+Mismo chequeo para el bloque de `_ready()` de `Scripts/Main/main.gd` donde
+se asigna `_wave_schedule`.
+
+### Tests nuevos a agregar
+
+Ninguno. `LevelSelection` es un autoload sin lógica de dominio (un solo
+campo público, sin invariantes que proteger) — no amerita tests headless,
+mismo criterio que el resto de la capa de escenas/composition roots.
+
+### Documentación a actualizar
+
+- `README.md`: ampliar la sección `### Overworld` explicando
+  `LevelSelection` (primer autoload del proyecto, por qué existe, por qué
+  se mantiene mínimo, por qué no se envolvió en una clase `LevelData`
+  todavía), y que los tres nodos ahora cargan calendarios distintos.
+- `TODO.md`: no requiere cambios.
+
+### Definición de hecho
+
+- Todos los tests existentes (headless) siguen pasando sin modificarse.
+- `README.md` actualizado.
+- Commit único.
+- Verificación manual en el editor de Godot: desde el overworld, cada uno
+  de los tres niveles debe sentirse distinto (más enemigos en Nivel 2 que en
+  Nivel 1, más todavía en Nivel 3). Correr `main.tscn` directo (sin pasar
+  por el overworld) debe seguir funcionando con el calendario de sandbox de
+  siempre (confirma que el *fallback* funciona).
+
+## Fases 3-5 (sin detallar aún)
 
 Se especifican recién cuando le toque el turno a cada una, ya con el
 resultado real de la fase anterior mergeado — diseñar más allá de eso ahora
