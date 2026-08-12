@@ -290,7 +290,22 @@ Incluye:
 - `project.godot` cambia `run/main_scene` de `uid://dmmvrg6midvd5` a la ruta explícita `res://scenes/menu/MainMenu.tscn`: un `uid` de un `.tscn` nuevo recién se genera cuando el editor lo abre/importa por primera vez, no se puede conocer de antemano al escribir el archivo a mano, y `res://` es igual de válido para `run/main_scene`.
 - Ningún botón de "volver al menú" dentro de la escena de gameplay: hoy no existe ninguno y agregarlo tocaría `Scripts/Main/main.gd`, otro sistema — fuera de alcance deliberado de esta branch.
 
-### Próximo objetivo
+### Overworld
+
+Estado:
+✅ `Overworld` implementada: pantalla intermedia entre `MainMenu` y el gameplay, con varios nodos de nivel — esqueleto de navegación, sin contenido por nivel todavía.
+
+Incluye:
+
+- `Overworld` (`Scripts/Overworld/overworld.gd` + `scenes/overworld/Overworld.tscn`; composition root de su propia escena, mismo criterio que `MainMenu`)
+- Sin tests headless, mismo criterio que el resto de la capa de escenas sin dominio propio (`Scripts/Main/main.gd`, `Scripts/Menu/`)
+
+#### Notas de diseño — Overworld
+
+- `Scripts/Overworld/` es una carpeta nueva de nivel superior, al mismo nivel que `Main/`/`Menu/`/`Gameplay/`/`UI/`, mismo criterio que `Scripts/Menu/`: `Overworld` es el composition root de su propia escena, no una vista reactiva a un dominio. No conoce nada del dominio del juego (`InventoryGrid`, `CombatSimulation`, etc.) ni de `Scripts/Main/main.gd`: solo sabe que existe un archivo de escena de gameplay al que navegar y uno de menú al que volver — misma independencia que ya mantiene `MainMenu`.
+- Los tres botones de nivel (`Level1Button`/`Level2Button`/`Level3Button`) están conectados al mismo handler (`_on_level_pressed`) y hacen exactamente lo mismo (`change_scene_to_file` a `res://scenes/main/main.tscn`, el mismo sandbox de siempre, sin ningún cambio en su contenido): esta fase prueba únicamente que el flujo de escenas funciona con "varios nodos de nivel", no construye contenido real por nivel — eso queda para la fase 2 del roadmap de overworld, deliberadamente fuera de alcance acá. No hay ningún mecanismo para pasar qué nivel se eligió, ni ninguna noción de nivel bloqueado/desbloqueado: los tres botones están siempre habilitados.
+- `MainMenu._on_start_pressed()` cambia su destino de `res://scenes/main/main.tscn` a `res://scenes/overworld/Overworld.tscn`: consecuencia mecánica de que ahora hay un paso intermedio, no una modificación de su propio diseño.
+- `Scripts/Main/main.gd` gana la forma de volver al overworld una vez terminada la batalla: un campo nuevo `_all_waves_finished` (falso por defecto) que `_on_battle_runner_state_changed()` pone en `true` en la misma transición donde ya detectaba que `_current_wave_index >= _wave_schedule.size()` (antes ese caso simplemente no hacía nada más). `_unhandled_input()` gana una condición nueva e independiente de la que ya existe para `ui_accept`: `ui_cancel` (Escape, por defecto en Godot) con `_all_waves_finished` en `true` navega a `res://scenes/overworld/Overworld.tscn` — mismo espíritu tosco que el disparador temporal de "Start Battle", sin UI definitiva todavía.
 
 Introducir `BattleReward`/`BattleRewardTracker`, recompensas de fin de oleada más elaboradas, un `RunController` o máquinas de estados de progresión, cuando exista una necesidad concreta que los justifique — fuera de alcance deliberado hasta ahora.
 

@@ -54,6 +54,7 @@ var _draft_pool: DraftPool
 var _rng: RandomNumberGenerator
 var _draft: Draft
 var _ready_for_next_wave: bool = true
+var _all_waves_finished: bool = false
 
 func _ready() -> void:
 	_grid = InventoryGrid.new(6, 6)
@@ -95,6 +96,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept") and _ready_for_next_wave and _current_wave_index < _wave_schedule.size():
 		_ready_for_next_wave = false
 		_battle_runner.start(_grid, _combat_path, _defender_catalog, _wave_schedule[_current_wave_index])
+	if event.is_action_pressed("ui_cancel") and _all_waves_finished:
+		get_tree().change_scene_to_file("res://scenes/overworld/Overworld.tscn")
 
 ## Reacciona únicamente a la transición a FINISHED: avanza el índice de wave
 ## y, si todavía queda alguna wave siguiente, arma un draft nuevo y lo entrega
@@ -105,6 +108,7 @@ func _on_battle_runner_state_changed(new_state: BattleRunner.State) -> void:
 		return
 	_current_wave_index += 1
 	if _current_wave_index >= _wave_schedule.size():
+		_all_waves_finished = true
 		return
 	_draft = Draft.new(_draft_pool, _rng, REROLL_COST)
 	_draft.option_chosen.connect(_on_draft_option_chosen)
